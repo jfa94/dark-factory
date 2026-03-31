@@ -168,9 +168,28 @@ ${description}
 
 ${criteria}
 
-### Review Findings
+### Tests Written
 
 BODY
+
+  # Extract test files from the diff
+  local test_files
+  test_files="$(git -C "$PROJECT_DIR" diff --name-only "staging...feat/${task_id}" 2>/dev/null \
+    | grep -E '\.(test|spec)\.' || true)"
+
+  if [[ -n "$test_files" ]]; then
+    printf '%s\n' "$test_files" | while IFS= read -r f; do
+      printf -- '- `%s`\n' "$f" >> "$body_file"
+    done
+  else
+    printf 'No test files detected in diff.\n' >> "$body_file"
+  fi
+
+  cat >> "$body_file" <<'DELIM'
+
+### Review Findings
+
+DELIM
 
   if [[ -f "$review_output_file" ]]; then
     cat >> "$body_file" <<'DELIM'
