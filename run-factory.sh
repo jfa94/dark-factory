@@ -70,4 +70,42 @@ case "$MODE" in
     ;;
 esac
 
+# --- Repository setup, scaffolding & task validation (after spec is ready) ---
+
+if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
+  # Resolve spec directory and tasks file
+  if [[ "$MODE" == "issue" ]]; then
+    _SLUG="$(slugify_title "$_PRD_TITLE")"
+  else
+    _SLUG="$SPEC_NAME"
+  fi
+  _SPEC_DIR="specs/features/${_SLUG}"
+  _TASKS_FILE="${PROJECT_DIR}/${_SPEC_DIR}/tasks.json"
+
+  # Branch setup
+  setup_staging
+  reconcile_staging_with_develop
+  setup_branch_protection
+
+  # Scaffolding
+  ensure_scaffolding
+
+  # Task validation
+  validate_tasks "$_TASKS_FILE"
+
+  # Topological sort — store result for orchestrator
+  TASK_ORDER="$(topological_sort "$_TASKS_FILE")"
+  export TASK_ORDER
+
+  log_info "Task execution order:"
+  printf '%s\n' "$TASK_ORDER" | while IFS= read -r tid; do
+    log_info "  - $tid"
+  done
+
+  # Commit spec directory to staging
+  commit_spec_to_staging "$_SPEC_DIR"
+
+  # TODO: Task execution (phase 5)
+fi
+
 # TODO: Summary and cleanup (phase 9)
