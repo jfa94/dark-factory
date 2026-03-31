@@ -9,6 +9,12 @@ set -euo pipefail
 
 MAX_TASK_RETRIES="${MAX_TASK_RETRIES:-4}"
 
+# Model/turns defaults (set by _map_complexity per task)
+_MODEL_ARGS=()
+_MAX_TURNS=60
+_CURRENT_TASK_ID=""
+_CURRENT_ATTEMPT=0
+
 # --- Placeholder: circuit breaker (implemented in spec 07) ---
 
 check_time_circuit_breaker() {
@@ -32,8 +38,8 @@ _get_task_json() {
   printf '%s' "$task_json"
 }
 
-# Map complexity to model flag and max-turns budget.
-# Sets _MODEL_FLAG and _MAX_TURNS.
+# Map complexity to model args and max-turns budget.
+# Sets _MODEL_ARGS and _MAX_TURNS.
 _map_complexity() {
   local complexity="$1"
 
@@ -319,8 +325,8 @@ _invoke_claude() {
 
     # Extract token usage from Claude output (best-effort)
     local input_tokens output_tokens
-    input_tokens="$(grep -oE 'input_tokens["\s:]+[0-9]+' "$output_file" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
-    output_tokens="$(grep -oE 'output_tokens["\s:]+[0-9]+' "$output_file" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
+    input_tokens="$(grep -oE 'input_tokens["[:space:]:]+[0-9]+' "$output_file" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
+    output_tokens="$(grep -oE 'output_tokens["[:space:]:]+[0-9]+' "$output_file" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
     {
       printf 'input_tokens=%s\n' "${input_tokens:-unknown}"
       printf 'output_tokens=%s\n' "${output_tokens:-unknown}"

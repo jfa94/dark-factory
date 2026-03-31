@@ -77,8 +77,10 @@ register_bg_pid() {
 
 # Kill all tracked background PIDs. Safe to call multiple times.
 _kill_bg_pids() {
-  for pid in "${_BG_PIDS[@]:-}"; do
-    [[ -z "$pid" ]] && continue
+  if [[ ${#_BG_PIDS[@]} -eq 0 ]]; then
+    return 0
+  fi
+  for pid in "${_BG_PIDS[@]}"; do
     kill "$pid" 2>/dev/null || true
   done
   _BG_PIDS=()

@@ -60,8 +60,8 @@ reconcile_staging_with_develop() {
   log_info "Fast-forward not possible; attempting merge"
   if ! git -C "$PROJECT_DIR" merge develop --no-edit 2>/dev/null; then
     log_error "Merge conflict: staging ← develop"
-    git -C "$PROJECT_DIR" merge --abort
-    git -C "$PROJECT_DIR" checkout "$original_branch" --quiet
+    git -C "$PROJECT_DIR" merge --abort 2>/dev/null || true
+    git -C "$PROJECT_DIR" checkout "$original_branch" --quiet 2>/dev/null || true
     log_error "Conflict between staging and develop — resolve manually"
     return 1
   fi

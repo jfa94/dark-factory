@@ -82,8 +82,14 @@ acquire_lock() {
 # Safe to call multiple times.
 release_lock() {
   if [[ -n "$_LOCK_DIR" && -d "$_LOCK_DIR" ]]; then
-    rm -rf "$_LOCK_DIR"
-    log_info "Lock released: $_LOCK_DIR"
+    local owner_pid
+    owner_pid="$(cat "$_LOCK_DIR/pid" 2>/dev/null || true)"
+    if [[ "$owner_pid" == "$$" ]]; then
+      rm -rf "$_LOCK_DIR"
+      log_info "Lock released: $_LOCK_DIR"
+    else
+      log_warn "Lock owned by PID ${owner_pid:-unknown}, not $$; skipping release"
+    fi
   fi
   _LOCK_DIR=""
 }

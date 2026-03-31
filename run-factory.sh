@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- Bash 4+ required (associative arrays, declare -g) ---
+
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+  printf 'Error: Bash 4+ required (found %s). Install via Homebrew: brew install bash\n' "$BASH_VERSION" >&2
+  exit 1
+fi
+
 # --- Resolve FACTORY_DIR (portable, handles symlinks) ---
 
 SOURCE="${BASH_SOURCE[0]}"

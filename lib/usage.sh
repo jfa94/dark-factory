@@ -192,8 +192,18 @@ _wait_for_next_hour() {
 _wait_for_window_reset() {
   log_warn "Usage at hard cap — pausing until window resets"
 
-  while true; do
+  local max_wait="${USAGE_HARD_CAP_WAIT:-7200}"  # 2 hours default
+  local waited=0
+
+  while [[ "$waited" -lt "$max_wait" ]]; do
     sleep "$USAGE_POLL_INTERVAL"
+    waited=$(( waited + USAGE_POLL_INTERVAL ))
+
+    # Respect runtime circuit breaker
+    if ! check_time_circuit_breaker; then
+      log_error "Runtime circuit breaker tripped during usage wait"
+      return 1
+    fi
 
     local usage_json
     usage_json="$(_fetch_usage)" || continue
@@ -206,8 +216,11 @@ _wait_for_window_reset() {
       return 0
     fi
 
-    log_info "Usage still at ${pct}% (cap: ${USAGE_HARD_CAP_PCT}%) — waiting"
+    log_info "Usage still at ${pct}% (cap: ${USAGE_HARD_CAP_PCT}%) — waiting (${waited}s / ${max_wait}s)"
   done
+
+  log_error "Usage wait timed out after ${max_wait}s"
+  return 1
 }
 
 # --- Public interface ---

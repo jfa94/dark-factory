@@ -124,6 +124,7 @@ ensure_scaffolding() {
     -C "$PROJECT_DIR" \
     -p "$(cat "$prompt_file")" \
     > /dev/null 2>&1 &
+  register_bg_pid $!
   spin $! || {
     log_error "Scaffolding creation failed"
     rm -f "$prompt_file"

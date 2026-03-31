@@ -155,7 +155,7 @@ _close_issue_success() {
 
   gh issue comment "$issue_number" \
     -R "$repo_url" \
-    --body "$(printf "$comment")" 2>/dev/null || {
+    --body "$(printf '%b' "$comment")" 2>/dev/null || {
     log_warn "Failed to post success comment on issue #$issue_number"
   }
 
@@ -192,7 +192,7 @@ _comment_issue_partial() {
 
   gh issue comment "$issue_number" \
     -R "$repo_url" \
-    --body "$(printf "$comment")" 2>/dev/null || {
+    --body "$(printf '%b' "$comment")" 2>/dev/null || {
     log_warn "Failed to post partial-completion comment on issue #$issue_number"
   }
 

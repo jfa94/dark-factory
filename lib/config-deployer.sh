@@ -11,6 +11,11 @@ _deploy_if_missing() {
   local dest_dir
   dest_dir="$(dirname "$dest")"
 
+  if [[ ! -f "$src" ]]; then
+    log_warn "Source file not found: $src (skipping)"
+    return 0
+  fi
+
   if [[ -f "$dest" ]]; then
     log_info "Skipping (exists): $dest"
     return 0

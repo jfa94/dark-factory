@@ -418,5 +418,12 @@ review_task() {
       rm -f "$review_output_file"
       return 0
       ;;
+
+    *)
+      log_error "Unexpected review verdict: $verdict"
+      rm -f "$review_output_file"
+      REVIEW_VERDICT="NEEDS_DISCUSSION"
+      return 1
+      ;;
   esac
 }
