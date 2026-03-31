@@ -68,7 +68,7 @@ _validate_tasks_json() {
 _build_spec_prompt() {
   local prd_body="$1"
   local prompt_file
-  prompt_file="$(mktemp)"
+  prompt_file="$(factory_mktemp)"
 
   cat <<'PROMPT_HEADER' > "$prompt_file"
 You are generating vertical-slice specs from a PRD. Use the /prd-to-spec skill.
@@ -125,7 +125,7 @@ _extract_review_score() {
 _run_spec_review() {
   local spec_dir="$1"
   local review_output_file
-  review_output_file="$(mktemp)"
+  review_output_file="$(factory_mktemp)"
 
   log_info "Running spec review"
 
@@ -153,7 +153,7 @@ _fix_blocking_issues() {
   log_info "Fixing blocking issues from spec review"
 
   local fix_prompt_file
-  fix_prompt_file="$(mktemp)"
+  fix_prompt_file="$(factory_mktemp)"
 
   # Write prompt safely — no shell expansion in heredoc body
   cat <<'FIXHEADER' > "$fix_prompt_file"

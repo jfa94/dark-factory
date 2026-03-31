@@ -59,6 +59,12 @@ spin() {
 
 FACTORY_TMP_DIR="$(mktemp -d)"
 
+# Create temp files inside FACTORY_TMP_DIR for cleanup on exit.
+# Usage: factory_mktemp  (prints temp file path)
+factory_mktemp() {
+  mktemp "$FACTORY_TMP_DIR/factory-XXXXXX"
+}
+
 # --- Background PID tracking ---
 
 declare -ga _BG_PIDS=()

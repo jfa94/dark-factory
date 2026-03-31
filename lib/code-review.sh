@@ -20,7 +20,7 @@ _build_review_prompt() {
   local is_followup="${3:-0}"
 
   local prompt_file
-  prompt_file="$(mktemp)"
+  prompt_file="$(factory_mktemp)"
 
   local task_id title description criteria
   task_id="$(printf '%s' "$task_json" | jq -r '.task_id')"
@@ -134,6 +134,7 @@ _invoke_review() {
   args+=(-p "$prompt_content")
 
   "${args[@]}" > "$output_file" 2>&1 &
+  register_bg_pid $!
   spin $!
   return $?
 }
@@ -146,7 +147,7 @@ _build_pr_body() {
   local verdict="$3"
 
   local body_file
-  body_file="$(mktemp)"
+  body_file="$(factory_mktemp)"
 
   local task_id title description criteria
   task_id="$(printf '%s' "$task_json" | jq -r '.task_id')"
@@ -272,7 +273,7 @@ _post_review_comment() {
   local review_output_file="$2"
 
   local comment_body
-  comment_body="$(mktemp)"
+  comment_body="$(factory_mktemp)"
   cat > "$comment_body" <<'HEADER'
 ## Code Review — Needs Discussion
 
@@ -319,7 +320,7 @@ review_task() {
 
   # Get the diff for review
   local diff_file
-  diff_file="$(mktemp)"
+  diff_file="$(factory_mktemp)"
   git -C "$PROJECT_DIR" diff "staging...$branch" > "$diff_file" 2>/dev/null || {
     log_error "Failed to generate diff for $task_id"
     rm -f "$diff_file"
@@ -341,7 +342,7 @@ review_task() {
 
   # Run review in background with spinner
   local review_output_file
-  review_output_file="$(mktemp)"
+  review_output_file="$(factory_mktemp)"
 
   log_info "Running review with Sonnet (max $REVIEW_TURNS turns)"
   if ! _invoke_review "$prompt_file" "$review_output_file"; then

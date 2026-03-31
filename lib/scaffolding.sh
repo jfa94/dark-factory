@@ -10,7 +10,7 @@ set -euo pipefail
 _build_scaffolding_prompt() {
   local missing_files=("$@")
   local prompt_file
-  prompt_file="$(mktemp)"
+  prompt_file="$(factory_mktemp)"
 
   cat <<'HEADER' > "$prompt_file"
 Create the following missing scaffolding files in the project root.

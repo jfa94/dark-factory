@@ -301,6 +301,12 @@ execute_tasks() {
       continue
     fi
 
+    # Skip already-completed tasks (resume)
+    if [[ "${_TASK_STATUS[$task_id]:-}" == "success" ]]; then
+      log_info "Skipping $task_id — already completed (resumed)"
+      continue
+    fi
+
     # Execute
     _TASKS_EXECUTED=$(( _TASKS_EXECUTED + 1 ))
 

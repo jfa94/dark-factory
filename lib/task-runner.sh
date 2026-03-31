@@ -78,7 +78,7 @@ _create_feature_branch() {
 _build_task_prompt() {
   local task_json="$1"
   local prompt_file
-  prompt_file="$(mktemp)"
+  prompt_file="$(factory_mktemp)"
 
   local task_id title description complexity
   task_id="$(printf '%s' "$task_json" | jq -r '.task_id')"
@@ -154,6 +154,22 @@ PROMPT
 - Do not modify existing tests to make them pass — fix the implementation instead
 PROMPT
 
+  # Append resume context if available (prior branch work)
+  if type -t get_resume_context &>/dev/null; then
+    local resume_ctx
+    resume_ctx="$(get_resume_context "$PROJECT_DIR" "$task_id")"
+    if [[ -n "$resume_ctx" ]]; then
+      cat >> "$prompt_file" <<RESUME
+
+## Prior Work (from interrupted run)
+
+${resume_ctx}
+
+Review this prior work before starting. Continue from where it left off.
+RESUME
+    fi
+  fi
+
   printf '%s' "$prompt_file"
 }
 
@@ -167,7 +183,7 @@ _build_retry_prompt() {
   local attempt="$5"
 
   local prompt_file
-  prompt_file="$(mktemp)"
+  prompt_file="$(factory_mktemp)"
 
   # Start with the base task prompt
   local base_prompt_file
@@ -292,13 +308,23 @@ _invoke_claude() {
 
   # Run Claude in background with spinner
   "${args[@]}" > "$output_file" 2>"$stderr_log" &
+  register_bg_pid $!
   spin $!
   local rc=$?
 
-  # Copy Claude output to log dir
+  # Copy Claude output and extract token usage to log dir
   if [[ -n "${FACTORY_LOG_DIR:-}" && -n "${_CURRENT_TASK_ID:-}" ]]; then
     local log_prefix="${FACTORY_LOG_DIR}/${_CURRENT_TASK_ID}-attempt-${_CURRENT_ATTEMPT:-1}"
     cp "$output_file" "${log_prefix}.json" 2>/dev/null || true
+
+    # Extract token usage from Claude output (best-effort)
+    local input_tokens output_tokens
+    input_tokens="$(grep -oE 'input_tokens["\s:]+[0-9]+' "$output_file" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
+    output_tokens="$(grep -oE 'output_tokens["\s:]+[0-9]+' "$output_file" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
+    {
+      printf 'input_tokens=%s\n' "${input_tokens:-unknown}"
+      printf 'output_tokens=%s\n' "${output_tokens:-unknown}"
+    } > "${log_prefix}.tokens.log" 2>/dev/null || true
   fi
 
   return $rc
@@ -412,7 +438,7 @@ run_task() {
 
     # Invoke Claude
     local claude_output_file
-    claude_output_file="$(mktemp)"
+    claude_output_file="$(factory_mktemp)"
 
     local claude_exit=0
     _invoke_claude "$prompt_file" "$claude_output_file" || claude_exit=$?
@@ -456,7 +482,7 @@ run_task() {
 
     # Quality gate
     local quality_output_file
-    quality_output_file="$(mktemp)"
+    quality_output_file="$(factory_mktemp)"
 
     if _run_quality_gate "$quality_output_file"; then
       rm -f "$quality_output_file"
