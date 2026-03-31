@@ -61,7 +61,7 @@ case "$MODE" in
     generate_and_review_spec
     ;;
   discover)
-    log_warn "Discover mode not yet implemented"
+    discover_and_process_prds
     ;;
   spec)
     log_warn "Spec mode not yet implemented"
