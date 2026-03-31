@@ -41,8 +41,12 @@ acquire_lock "$PROJECT_DIR"
 
 cleanup() {
   local exit_code=$?
+  _kill_bg_pids || true
   restore_settings || true
   release_lock || true
+  if [[ -n "${FACTORY_TMP_DIR:-}" && -d "$FACTORY_TMP_DIR" ]]; then
+    rm -rf "$FACTORY_TMP_DIR"
+  fi
   exit "$exit_code"
 }
 trap cleanup EXIT INT TERM
@@ -83,6 +87,12 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   _SPEC_DIR="specs/features/${_SLUG}"
   _TASKS_FILE="${PROJECT_DIR}/${_SPEC_DIR}/tasks.json"
 
+  # Initialize log directory
+  init_log_dir "$PROJECT_DIR" "$_SLUG"
+
+  # Resume detection
+  check_resume "$PROJECT_DIR" "$_SLUG"
+
   # Branch setup
   setup_staging
   reconcile_staging_with_develop
@@ -103,12 +113,33 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
     log_info "  - $tid"
   done
 
+  # If resuming, pre-populate skip set and prior PR URLs
+  if [[ -n "${RESUME_SKIP_SET:-}" ]]; then
+    while IFS= read -r skip_tid; do
+      [[ -z "$skip_tid" ]] && continue
+      _TASK_STATUS["$skip_tid"]="success"
+      log_info "Resume: marking $skip_tid as completed (skipping)"
+    done <<< "$RESUME_SKIP_SET"
+
+    # Restore PR mapping from prior run
+    if [[ -n "${RESUME_LOG_DIR:-}" && -f "${RESUME_LOG_DIR}/pr-map.log" ]]; then
+      _resume_repo_url="$(git -C "$PROJECT_DIR" remote get-url origin)" || true
+      _resume_nwo="$(printf '%s' "$_resume_repo_url" | sed -E 's#(https://github\.com/|git@github\.com:)##' | sed 's/\.git$//')"
+      while IFS='=' read -r tid pr_num; do
+        [[ -z "$tid" ]] && continue
+        _TASK_PR_URL["$tid"]="https://github.com/${_resume_nwo}/pull/${pr_num}"
+      done < "${RESUME_LOG_DIR}/pr-map.log"
+      unset _resume_repo_url _resume_nwo
+    fi
+  fi
+
   # Commit spec directory to staging
   commit_spec_to_staging "$_SPEC_DIR"
 
   # Execute tasks in dependency order
   check_usage_and_wait || true
-  execute_tasks
-fi
+  execute_tasks || true
 
-# TODO: Summary and cleanup (phase 9)
+  # Completion: summary, issue management, merge wait, cleanup
+  run_completion "$_SPEC_DIR"
+fi

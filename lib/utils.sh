@@ -54,3 +54,94 @@ spin() {
   wait "$pid"
   return $?
 }
+
+# --- Temp directory (created at module load time) ---
+
+FACTORY_TMP_DIR="$(mktemp -d)"
+
+# --- Background PID tracking ---
+
+declare -ga _BG_PIDS=()
+
+# Register a background PID for cleanup on exit.
+# Usage: some_cmd & register_bg_pid $!
+register_bg_pid() {
+  _BG_PIDS+=("$1")
+}
+
+# Kill all tracked background PIDs. Safe to call multiple times.
+_kill_bg_pids() {
+  for pid in "${_BG_PIDS[@]:-}"; do
+    [[ -z "$pid" ]] && continue
+    kill "$pid" 2>/dev/null || true
+  done
+  _BG_PIDS=()
+}
+
+# --- Log directory management ---
+
+# Will be set once spec slug is known (in run-factory.sh).
+FACTORY_LOG_DIR=""
+
+# Initialize log directory for a run.
+# Usage: init_log_dir <project_dir> <spec_slug>
+init_log_dir() {
+  local project_dir="$1"
+  local spec_slug="$2"
+  local timestamp
+  timestamp="$(date '+%Y%m%d-%H%M%S')"
+
+  FACTORY_LOG_DIR="${project_dir}/logs/${spec_slug}/${timestamp}"
+  mkdir -p "$FACTORY_LOG_DIR"
+
+  # Ensure logs/ is gitignored in target project
+  local gitignore="${project_dir}/.gitignore"
+  if [[ -f "$gitignore" ]]; then
+    if ! grep -qxF 'logs/' "$gitignore" 2>/dev/null; then
+      printf '\n# Dark factory logs\nlogs/\n' >> "$gitignore"
+    fi
+  else
+    printf '# Dark factory logs\nlogs/\n' > "$gitignore"
+  fi
+
+  log_info "Log directory: $FACTORY_LOG_DIR"
+}
+
+# Write a line to the status log.
+# Usage: write_status <task_id> <ok|failed|skipped>
+write_status() {
+  local task_id="$1"
+  local status="$2"
+
+  if [[ -z "$FACTORY_LOG_DIR" ]]; then
+    return 0
+  fi
+
+  printf '%s=%s\n' "$task_id" "$status" >> "${FACTORY_LOG_DIR}/status.log"
+}
+
+# Write a line to the PR mapping log.
+# Usage: write_pr_map <task_id> <pr_number>
+write_pr_map() {
+  local task_id="$1"
+  local pr_number="$2"
+
+  if [[ -z "$FACTORY_LOG_DIR" ]]; then
+    return 0
+  fi
+
+  printf '%s=%s\n' "$task_id" "$pr_number" >> "${FACTORY_LOG_DIR}/pr-map.log"
+}
+
+# Read completed tasks from status log (for resume).
+# Outputs task IDs that have status=ok, one per line.
+read_completed_tasks() {
+  local log_dir="$1"
+  local status_file="${log_dir}/status.log"
+
+  if [[ ! -f "$status_file" ]]; then
+    return 0
+  fi
+
+  awk -F= '$2 == "ok" { print $1 }' "$status_file"
+}
