@@ -207,10 +207,10 @@ Each task creates a feature branch from `staging`, opens a PR back to `staging`,
 
 Dark Factory deploys these configs to the target project if they don't already exist:
 
-- `settings.autonomous.json` — Claude Code settings with autonomous permissions and safety hooks
-- `quality-gate.yml` — GitHub Actions workflow (tests, lint, format, typecheck, mutation testing)
-- `.stryker.config.json` — Mutation testing config
-- `.dependency-cruiser.cjs` — Dependency graph validation
+- `templates/settings.autonomous.json` — Claude Code settings with autonomous permissions and safety hooks
+- `templates/quality-gate.yml` — GitHub Actions workflow (tests, lint, format, typecheck, mutation testing)
+- `templates/.stryker.config.json` — Mutation testing config
+- `templates/.dependency-cruiser.cjs` — Dependency graph validation
 
 ### Safety guardrails
 

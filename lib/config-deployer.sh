@@ -37,17 +37,17 @@ deploy_factory_configs() {
 
   # CI workflow — always deploy if missing
   _deploy_if_missing \
-    "$FACTORY_DIR/quality-gate.yml" \
+    "$FACTORY_DIR/templates/quality-gate.yml" \
     "$project_dir/.github/workflows/quality-gate.yml"
 
   # Node-specific configs — only when target has package.json
   if [[ -f "$project_dir/package.json" ]]; then
     _deploy_if_missing \
-      "$FACTORY_DIR/.stryker.config.json" \
+      "$FACTORY_DIR/templates/.stryker.config.json" \
       "$project_dir/.stryker.config.json"
 
     _deploy_if_missing \
-      "$FACTORY_DIR/.dependency-cruiser.cjs" \
+      "$FACTORY_DIR/templates/.dependency-cruiser.cjs" \
       "$project_dir/.dependency-cruiser.cjs"
   else
     log_info "No package.json; skipping Node-specific configs"

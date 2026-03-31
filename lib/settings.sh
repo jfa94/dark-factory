@@ -15,7 +15,7 @@ swap_settings() {
   local project_dir="$1"
   local target_settings="$project_dir/.claude/settings.json"
   local backup="$project_dir/.claude/settings.json.bak"
-  local factory_settings="$FACTORY_DIR/settings.autonomous.json"
+  local factory_settings="$FACTORY_DIR/templates/settings.autonomous.json"
 
   if [[ ! -f "$factory_settings" ]]; then
     log_error "Factory settings not found: $factory_settings"
