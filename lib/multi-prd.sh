@@ -51,7 +51,7 @@ sequential_execution() {
     log_info "Processing PRD $i/$total: issue #$issue_number"
 
     local rc=0
-    "$FACTORY_DIR/run-factory.sh" "$PROJECT_DIR" --issue "$issue_number" --skip-settings-swap || rc=$?
+    "$FACTORY_DIR/run-factory.sh" "$PROJECT_DIR" --issue "$issue_number" --skip-settings-swap --skip-lock || rc=$?
 
     if [[ "$rc" -eq 0 ]]; then
       log_success "PRD #$issue_number completed"

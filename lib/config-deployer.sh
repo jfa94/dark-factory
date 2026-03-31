@@ -5,6 +5,7 @@ set -euo pipefail
 # Never overwrites existing files.
 
 # Deploy a single file if it doesn't already exist at the destination.
+# Appends to _DEPLOYED_CONFIGS on deploy, silent otherwise.
 _deploy_if_missing() {
   local src="$1"
   local dest="$2"
@@ -16,24 +17,21 @@ _deploy_if_missing() {
     return 0
   fi
 
-  if [[ -f "$dest" ]]; then
-    log_info "Skipping (exists): $dest"
-    return 0
-  fi
+  [[ -f "$dest" ]] && return 0
 
   mkdir -p "$dest_dir"
   cp "$src" "$dest"
-  log_success "Deployed: $dest"
+  _DEPLOYED_CONFIGS+=("$dest")
 }
 
 # Deploy factory configs to a target project.
 # - quality-gate.yml  → always (if missing)
 # - .stryker.config.json  → only if package.json present and file missing
 # - .dependency-cruiser.cjs → only if package.json present and file missing
+# Only logs files that were actually deployed; single summary line if all present.
 deploy_factory_configs() {
   local project_dir="$1"
-
-  log_info "Deploying factory configs to $project_dir"
+  _DEPLOYED_CONFIGS=()
 
   # CI workflow — always deploy if missing
   _deploy_if_missing \
@@ -49,7 +47,13 @@ deploy_factory_configs() {
     _deploy_if_missing \
       "$FACTORY_DIR/templates/.dependency-cruiser.cjs" \
       "$project_dir/.dependency-cruiser.cjs"
+  fi
+
+  if [[ ${#_DEPLOYED_CONFIGS[@]} -eq 0 ]]; then
+    log_info "All factory configs present"
   else
-    log_info "No package.json; skipping Node-specific configs"
+    for f in "${_DEPLOYED_CONFIGS[@]}"; do
+      log_success "Deployed: $f"
+    done
   fi
 }

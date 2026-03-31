@@ -6,6 +6,7 @@ MODE=""
 ISSUE_NUMBER=""
 SPEC_NAME=""
 SKIP_SETTINGS_SWAP=0
+SKIP_LOCK=0
 PROJECT_DIR=""
 
 show_help() {
@@ -23,6 +24,7 @@ Modes:
 
 Options:
   --skip-settings-swap   Skip injecting autonomous settings into target project
+  --skip-lock            Skip lock acquisition (used by internal recursive calls)
   --help, -h             Show this help message
 
 Prerequisites (in target project):
@@ -97,6 +99,10 @@ parse_args() {
         ;;
       --skip-settings-swap)
         SKIP_SETTINGS_SWAP=1
+        shift
+        ;;
+      --skip-lock)
+        SKIP_LOCK=1
         shift
         ;;
       -*)

@@ -42,7 +42,9 @@ deploy_factory_configs "$PROJECT_DIR"
 
 # --- Acquire lock ---
 
-acquire_lock "$PROJECT_DIR"
+if [[ "$SKIP_LOCK" -eq 0 ]]; then
+  acquire_lock "$PROJECT_DIR"
+fi
 
 # --- Swap settings (with trap for guaranteed cleanup) ---
 
