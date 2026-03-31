@@ -105,7 +105,9 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   # Commit spec directory to staging
   commit_spec_to_staging "$_SPEC_DIR"
 
-  # TODO: Task execution (phase 5)
+  # Execute tasks in dependency order
+  check_usage_and_wait || true
+  execute_tasks
 fi
 
 # TODO: Summary and cleanup (phase 9)
