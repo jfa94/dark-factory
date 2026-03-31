@@ -1,52 +1,209 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(git *)",
-      "Bash(cd *)",
-      "Bash(ls *)",
-      "Bash(cat *)",
-      "Bash(head *)",
-      "Bash(tail *)",
-      "Bash(find *)",
-      "Bash(grep *)",
-      "Bash(rg *)",
-      "Bash(wc *)",
-      "Bash(diff *)",
-      "Bash(mkdir *)",
-      "Bash(cp *)",
-      "Bash(mv *)",
-      "Bash(rm *)",
-      "Bash(touch *)",
-      "Bash(chmod *)",
-      "Bash(pnpm *)",
-      "Bash(npm *)",
-      "Bash(npx *)",
-      "Bash(node *)",
-      "Bash(gh *)",
-      "Bash(jq *)",
-      "Bash(sed *)",
-      "Bash(awk *)",
-      "Bash(sort *)",
-      "Bash(uniq *)",
-      "Bash(tr *)",
-      "Bash(cut *)",
-      "Bash(tee *)",
-      "Bash(xargs *)",
-      "Bash(dirname *)",
-      "Bash(basename *)",
-      "Bash(realpath *)",
-      "Bash(pwd)",
-      "Bash(echo *)",
-      "Bash(printf *)",
-      "Bash(test *)",
-      "Bash(true)",
-      "Bash(false)",
-      "Read",
-      "Write",
-      "Edit",
-      "Glob",
-      "Grep"
-    ],
-    "deny": []
-  }
+    "$schema": "https://json.schemastore.org/claude-code-settings.json",
+    "enabledPlugins": {
+        "typescript-lsp@claude-plugins-official": true,
+        "commit-commands@claude-plugins-official": true,
+        "security-guidance@claude-plugins-official": true,
+        "pr-review-toolkit@claude-plugins-official": true,
+        "agent-sdk-dev@claude-plugins-official": true,
+        "feature-dev@claude-plugins-official": true,
+        "code-review@claude-plugins-official": true,
+        "code-simplifier@claude-plugins-official": true,
+        "frontend-design@claude-plugins-official": true,
+        "playground@claude-plugins-official": true,
+        "claude-md-management@claude-plugins-official": true,
+        "plugin-dev@claude-plugins-official": true,
+        "playwright@claude-plugins-official": true,
+        "supabase@claude-plugins-official": true,
+        "figma@claude-plugins-official": true,
+        "posthog@claude-plugins-official": true,
+        "ralph-loop@claude-plugins-official": true,
+        "superpowers@claude-plugins-official": true,
+        "stripe@claude-plugins-official": true
+    },
+    "effortLevel": "high",
+    "permissions": {
+        "allow": [
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebSearch",
+            "Bash(*)",
+            "mcp__plugin_supabase_supabase__get_logs",
+            "mcp__plugin_supabase_supabase__list_projects",
+            "mcp__plugin_supabase_supabase__get_project",
+            "mcp__plugin_supabase_supabase__list_tables",
+            "mcp__plugin_supabase_supabase__list_extensions",
+            "mcp__plugin_supabase_supabase__list_organizations",
+            "mcp__plugin_supabase_supabase__get_cost",
+            "mcp__plugin_supabase_supabase__execute_sql",
+            "mcp__plugin_supabase_supabase__search_docs",
+            "mcp__plugin_supabase_supabase__get_advisors",
+            "mcp__plugin_supabase_supabase__get_project_url",
+            "mcp__plugin_supabase_supabase__get_publishable_keys",
+            "mcp__plugin_supabase_supabase__generate_typescript_types",
+            "mcp__plugin_supabase_supabase__list_migrations",
+            "mcp__plugin_supabase_supabase__list_edge_functions",
+            "mcp__plugin_supabase_supabase__get_edge_function",
+            "mcp__plugin_supabase_supabase__list_storage_buckets",
+            "mcp__plugin_supabase_supabase__get_storage_config",
+            "mcp__plugin_supabase_supabase__apply_migration",
+            "mcp__plugin_supabase_supabase__deploy_edge_function",
+            "mcp__plugin_supabase_supabase__create_branch",
+            "mcp__plugin_supabase_supabase__list_branches",
+            "mcp__plugin_supabase_supabase__delete_branch",
+            "mcp__plugin_supabase_supabase__merge_branch",
+            "mcp__plugin_supabase_supabase__reset_branch",
+            "mcp__plugin_supabase_supabase__rebase_branch",
+            "mcp__plugin_posthog_posthog__logs-query",
+            "mcp__plugin_posthog_posthog__logs-list-attributes",
+            "mcp__plugin_posthog_posthog__logs-list-attribute-values",
+            "mcp__plugin_posthog_posthog__insights-get-all",
+            "mcp__plugin_posthog_posthog__insight-get",
+            "mcp__plugin_posthog_posthog__query-run",
+            "mcp__plugin_posthog_posthog__dashboards-get-all",
+            "mcp__plugin_posthog_posthog__dashboard-get",
+            "mcp__plugin_posthog_posthog__feature-flag-get-all",
+            "mcp__plugin_posthog_posthog__feature-flag-get-definition",
+            "mcp__plugin_posthog_posthog__list-errors",
+            "mcp__plugin_posthog_posthog__error-details",
+            "mcp__plugin_posthog_posthog__experiment-get-all",
+            "mcp__plugin_posthog_posthog__experiment-get",
+            "mcp__plugin_posthog_posthog__experiment-results-get",
+            "mcp__plugin_posthog_posthog__surveys-get-all",
+            "mcp__plugin_posthog_posthog__survey-get",
+            "mcp__plugin_posthog_posthog__survey-stats",
+            "mcp__plugin_posthog_posthog__posthog_organizations_get",
+            "mcp__plugin_posthog_posthog__posthog_projects_get",
+            "mcp__plugin_posthog_posthog__posthog_event_definitions_list",
+            "mcp__plugin_posthog_posthog__posthog_properties_list",
+            "mcp__plugin_posthog_posthog__posthog_entity_search",
+            "mcp__plugin_posthog_posthog__docs-search",
+            "mcp__plugin_posthog_posthog__get-llm-total-costs-for-project"
+        ],
+        "deny": [
+            "Bash(rm -rf *)",
+            "Bash(rm -r *)",
+            "Bash(find .claude*)",
+            "Bash(ls .claude*)",
+            "Bash(git push --force*)",
+            "Bash(git push * --force*)",
+            "Bash(git rebase *)",
+            "Bash(git reset --hard*)",
+            "Bash(git clean -f*)",
+            "Bash(npx *create-*)",
+            "Bash(aws iam delete-* *)",
+            "Bash(aws iam detach-* *)",
+            "Bash(aws cloudformation delete-stack *)",
+            "Bash(aws s3 rb *)",
+            "Bash(aws rds delete-* *)",
+            "Bash(aws ec2 terminate-* *)",
+            "Bash(aws dynamodb delete-table *)",
+            "Bash(aws lambda delete-function *)",
+            "Bash(aws logs delete-* *)"
+        ]
+    },
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Glob|Grep|Read|Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "INPUT=$(cat); FP=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.pattern // \"\"'); if echo \"$FP\" | grep -qE '(^|/)\\.claude(/|$)'; then echo '{\"decision\":\"block\",\"reason\":\"Access to .claude/ directory is restricted in autonomous mode.\"}'; fi"
+                    }
+                ]
+            },
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "BRANCH=$(git branch --show-current 2>/dev/null); if [ \"$BRANCH\" = \"main\" ] || [ \"$BRANCH\" = \"master\" ]; then echo '{\"decision\":\"block\",\"reason\":\"Cannot edit on main/master. Create a feature branch first.\"}'; exit 0; fi"
+                    }
+                ]
+            },
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "FP=$(cat | jq -r '.tool_input.file_path // \"\"'); if echo \"$FP\" | grep -qE '(\\.env[^/]*$|/migrations/|/secrets/)'; then echo '{\"decision\":\"block\",\"reason\":\"Protected file: requires human review.\"}'; fi"
+                    }
+                ]
+            },
+            {
+                "matcher": "mcp__plugin_supabase_supabase__execute_sql",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "SQL=$(cat | jq -r '.tool_input.sql // .tool_input.query // \"\"' | tr '[:lower:]' '[:upper:]'); if echo \"$SQL\" | grep -q 'DROP DATABASE'; then echo '{\"decision\":\"block\",\"reason\":\"DROP DATABASE blocked.\"}'; exit 0; fi; if echo \"$SQL\" | grep -q 'DROP SCHEMA'; then echo '{\"decision\":\"block\",\"reason\":\"DROP SCHEMA blocked.\"}'; exit 0; fi; for KW in TRUNCATE GRANT REVOKE; do if echo \"$SQL\" | grep -qw \"$KW\"; then echo '{\"decision\":\"block\",\"reason\":\"'\"$KW\"' blocked in autonomous mode.\"}'; exit 0; fi; done"
+                    }
+                ]
+            },
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "CMD=$(cat | jq -r '.tool_input.command // \"\"'); for PAT in 'rm -rf' 'rm -r /' 'DROP TABLE' 'DROP DATABASE' 'chmod 777' 'curl.*\\|.*sh' 'wget.*\\|.*sh'; do if echo \"$CMD\" | grep -qiE \"$PAT\"; then echo '{\"decision\":\"block\",\"reason\":\"Blocked dangerous command pattern\"}'; exit 0; fi; done"
+                    }
+                ]
+            },
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "CMD=$(cat | jq -r '.tool_input.command // \"\"'); if echo \"$CMD\" | grep -qE '^git commit'; then cd \"${CLAUDE_PROJECT_DIR:-.}\"; SECRETS=$(git diff --cached --diff-filter=ACMR -U0 2>/dev/null | grep -iE '(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|password\\s*[:=]\\s*\\S+|secret_?key\\s*[:=]\\s*\\S+|-----BEGIN (RSA |EC |DSA )?PRIVATE KEY)' || true); if [ -n \"$SECRETS\" ]; then echo '{\"decision\":\"block\",\"reason\":\"Potential secrets detected in staged changes.\"}'; exit 0; fi; npx tsc --noEmit 2>&1 | tail -10; TSC=$?; STAGED=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' 2>/dev/null); if [ -n \"$STAGED\" ]; then echo \"$STAGED\" | xargs npx eslint --max-warnings 0 2>&1 | tail -10; LINT=$?; else LINT=0; fi; if [ $TSC -ne 0 ] || [ $LINT -ne 0 ]; then jq -n --arg r \"Pre-commit gate failed: tsc($TSC) lint($LINT). Fix before committing.\" '{\"decision\":\"block\",\"reason\":$r}'; exit 0; fi; fi",
+                        "timeout": 60
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "FILE=$(cat | jq -r '.tool_input.file_path'); npx prettier --write \"$FILE\" 2>/dev/null; echo '{\"suppressOutput\": true}'",
+                        "timeout": 15
+                    }
+                ]
+            },
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "FILE=$(cat | jq -r '.tool_input.file_path // \"\"'); if echo \"$FILE\" | grep -qE '\\.(test|spec)\\.(ts|tsx)$'; then exit 0; fi; if echo \"$FILE\" | grep -qE '\\.(ts|tsx)$'; then npx vitest run --reporter=dot --findRelatedTests \"$FILE\" --passWithNoTests 2>&1 | tail -10; fi",
+                        "timeout": 30
+                    }
+                ]
+            },
+            {
+                "matcher": ".*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "AUDIT=.claude/tool-audit.jsonl; if [ -f \"$AUDIT\" ] && [ $(stat -f%z \"$AUDIT\" 2>/dev/null || stat -c%s \"$AUDIT\" 2>/dev/null || echo 0) -gt 10485760 ]; then mv \"$AUDIT\" \"$AUDIT.old\"; fi; jq -c --arg ts \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" --arg task \"${FACTORY_TASK_ID:-interactive}\" '{ts: $ts, task: $task, tool: .tool_name, target: (.tool_input.file_path // .tool_input.command // null)}' >> \"$AUDIT\" 2>/dev/null || true"
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd $CLAUDE_PROJECT_DIR && npx vitest run --reporter=verbose 2>&1 | tail -40; TEST=$?; if [ $TEST -ne 0 ]; then echo 'STOP GATE FAILED: tests failing. Fix all issues.'; exit 1; fi",
+                        "timeout": 120
+                    }
+                ]
+            }
+        ]
+    }
 }

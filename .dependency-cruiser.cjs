@@ -2,33 +2,49 @@
 module.exports = {
   forbidden: [
     {
-      name: "no-circular",
-      severity: "error",
-      comment: "Circular dependencies cause tight coupling and are hard to reason about",
+      name: 'no-circular',
+      severity: 'error',
       from: {},
       to: { circular: true },
     },
     {
-      name: "no-orphans",
-      severity: "warn",
-      comment: "Orphan modules are not imported anywhere — dead code candidates",
-      from: { orphan: true, pathNot: ["\\.(test|spec)\\.ts$", "^src/index\\.ts$"] },
-      to: {},
+      name: 'domain-no-infrastructure',
+      severity: 'error',
+      comment: 'Domain layer must never depend on infrastructure',
+      from: { path: '^src/domain' },
+      to: { path: '^src/(services|lib|app|components)' },
     },
     {
-      name: "no-dev-deps-in-production",
-      severity: "error",
-      comment: "Production code must not import devDependencies",
-      from: { path: "^src/", pathNot: "\\.(test|spec)\\.ts$" },
-      to: { dependencyTypes: ["npm-dev"] },
+      name: 'components-no-services',
+      severity: 'error',
+      comment: 'Components must not directly import services',
+      from: { path: '^src/components' },
+      to: { path: '^src/services' },
+    },
+    {
+      name: 'not-to-test',
+      severity: 'error',
+      from: { pathNot: '\\.(test|spec)\\.' },
+      to: { path: '\\.(test|spec)\\.' },
+    },
+    {
+      name: 'not-to-dev-dep',
+      severity: 'error',
+      from: { path: '^src', pathNot: '\\.(test|spec)\\.' },
+      to: { dependencyTypes: ['npm-dev'] },
+    },
+    {
+      name: 'no-unresolvable',
+      severity: 'error',
+      from: {},
+      to: { couldNotResolve: true },
     },
   ],
   options: {
-    doNotFollow: { path: "node_modules" },
+    doNotFollow: { path: 'node_modules' },
+    includeOnly: '^src',
     tsPreCompilationDeps: true,
-    enhancedResolveOptions: {
-      exportsFields: ["exports"],
-      conditionNames: ["import", "require", "node", "default"],
-    },
+    tsConfig: { fileName: 'tsconfig.json' },
+    cache: true,
   },
-};
+}
