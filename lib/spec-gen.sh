@@ -100,8 +100,7 @@ _run_spec_generation() {
     -p "$(cat "$prompt_file")" \
     > /dev/null 2>&1 &
   local pid=$!
-  spin $pid
-  wait $pid || {
+  spin $pid || {
     log_error "Claude spec generation failed"
     return 1
   }
@@ -136,10 +135,11 @@ _run_spec_review() {
     -p "Review the spec in ${spec_dir}. Score each criterion and provide an overall score out of 60. List any blocking issues." \
     > "$review_output_file" 2>&1 &
   local pid=$!
-  spin $pid
-  wait $pid || {
+  if ! spin $pid; then
     log_warn "Spec review process exited with error"
-  }
+    rm -f "$review_output_file"
+    return 1
+  fi
 
   cat "$review_output_file"
   rm -f "$review_output_file"
@@ -169,8 +169,7 @@ FIXHEADER
     -p "$(cat "$fix_prompt_file")" \
     > /dev/null 2>&1 &
   local pid=$!
-  spin $pid
-  wait $pid || {
+  spin $pid || {
     log_warn "Fix attempt exited with error"
   }
 
