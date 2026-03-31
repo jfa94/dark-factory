@@ -39,16 +39,16 @@ _map_complexity() {
 
   case "$complexity" in
     simple)
-      _MODEL_FLAG="--model haiku"
+      _MODEL_ARGS=("--model" "haiku")
       _MAX_TURNS=40
       ;;
     complex)
-      _MODEL_FLAG="--model opus"
+      _MODEL_ARGS=("--model" "opus")
       _MAX_TURNS=80
       ;;
     *)
       # standard (default)
-      _MODEL_FLAG=""
+      _MODEL_ARGS=()
       _MAX_TURNS=60
       ;;
   esac
@@ -200,19 +200,21 @@ The previous attempt ran out of turns before completing. Your partial work has b
 GUIDANCE
       ;;
     quality_gate)
-      cat >> "$prompt_file" <<GUIDANCE
+      cat >> "$prompt_file" <<'GUIDANCE'
 ### Guidance: Quality Gate Failed
 
-The previous attempt completed but failed the quality gate (\`pnpm quality\`).
+The previous attempt completed but failed the quality gate (`pnpm quality`).
 
 **Quality gate output:**
 
-\`\`\`
-${failure_output}
-\`\`\`
+```
+GUIDANCE
+      printf '%s\n' "$failure_output" >> "$prompt_file"
+      cat >> "$prompt_file" <<'GUIDANCE'
+```
 
 - Fix the specific issues shown above
-- Run \`pnpm quality\` yourself before declaring done
+- Run `pnpm quality` yourself before declaring done
 - Common issues: lint errors, type errors, test failures, formatting
 GUIDANCE
       ;;
@@ -245,22 +247,19 @@ GUIDANCE
 }
 
 # Invoke Claude with the given prompt file and complexity settings.
+# Uses module globals _MODEL_ARGS and _MAX_TURNS from _map_complexity().
 # Returns: exit code from Claude process.
 _invoke_claude() {
   local prompt_file="$1"
-  local model_flag="$2"
-  local max_turns="$3"
-  local output_file="$4"
+  local output_file="$2"
 
   local prompt_content
   prompt_content="$(cat "$prompt_file")"
 
-  # Build args array to avoid eval
-  local -a args=(claude --print --max-turns "$max_turns" -C "$PROJECT_DIR")
-  if [[ -n "$model_flag" ]]; then
-    # model_flag is e.g. "--model haiku" — split intentionally
-    # shellcheck disable=SC2206
-    args+=($model_flag)
+  # Build args array
+  local -a args=(claude --print --max-turns "$_MAX_TURNS" -C "$PROJECT_DIR")
+  if [[ ${#_MODEL_ARGS[@]} -gt 0 ]]; then
+    args+=("${_MODEL_ARGS[@]}")
   fi
   args+=(-p "$prompt_content")
 
@@ -370,16 +369,8 @@ run_task() {
     claude_output_file="$(mktemp)"
 
     local claude_exit=0
-    _invoke_claude "$prompt_file" "$_MODEL_FLAG" "$_MAX_TURNS" "$claude_output_file" || claude_exit=$?
+    _invoke_claude "$prompt_file" "$claude_output_file" || claude_exit=$?
     rm -f "$prompt_file"
-
-    # Check if any changes were made
-    local had_changes=1
-    if git -C "$PROJECT_DIR" diff --quiet HEAD staging 2>/dev/null && \
-       git -C "$PROJECT_DIR" diff --quiet 2>/dev/null && \
-       git -C "$PROJECT_DIR" diff --cached --quiet 2>/dev/null; then
-      had_changes=0
-    fi
 
     # For max_turns failures, preserve partial work (no branch reset)
     if [[ "$claude_exit" -eq 2 ]]; then
@@ -403,8 +394,10 @@ run_task() {
 
     rm -f "$claude_output_file"
 
-    # No changes detection
-    if [[ "$had_changes" -eq 0 ]]; then
+    # Check if any changes were made (after confirming Claude exited 0)
+    if git -C "$PROJECT_DIR" diff --quiet HEAD staging 2>/dev/null && \
+       git -C "$PROJECT_DIR" diff --quiet 2>/dev/null && \
+       git -C "$PROJECT_DIR" diff --cached --quiet 2>/dev/null; then
       log_warn "No changes detected for $task_id"
       prev_failure_type="no_changes"
       prev_failure_output=""
