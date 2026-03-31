@@ -29,9 +29,29 @@ fi
 
 validate_project "$PROJECT_DIR"
 
-# TODO: Acquire lock (phase 2 — lib/lock.sh)
-# TODO: Swap settings to autonomous mode (phase 2 — lib/settings.sh)
-# TODO: Deploy factory configs to target project (phase 2 — lib/config-deployer.sh)
+# --- Deploy factory configs (before lock — no cleanup needed on failure) ---
+
+deploy_factory_configs "$PROJECT_DIR"
+
+# --- Acquire lock ---
+
+acquire_lock "$PROJECT_DIR"
+
+# --- Swap settings (with trap for guaranteed cleanup) ---
+
+cleanup() {
+  local exit_code=$?
+  restore_settings
+  release_lock
+  exit "$exit_code"
+}
+trap cleanup EXIT INT TERM
+
+if [[ "$SKIP_SETTINGS_SWAP" -eq 0 ]]; then
+  swap_settings "$PROJECT_DIR"
+else
+  log_info "Skipping settings swap (--skip-settings-swap)"
+fi
 
 # TODO: Mode routing
 # case "$MODE" in
