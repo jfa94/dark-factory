@@ -13,7 +13,7 @@ _LOCK_DIR=""
 _lock_path_for() {
   local project_dir="$1"
   local hash
-  hash="$(printf '%s' "$project_dir" | shasum -a 256 | cut -d' ' -f1)"
+  hash="$(printf '%s' "$project_dir" | (sha256sum 2>/dev/null || shasum -a 256) | cut -d' ' -f1)"
   printf '/tmp/dark-factory-lock-%s' "$hash"
 }
 
@@ -51,6 +51,10 @@ acquire_lock() {
         log_info "Lock acquired: $_LOCK_DIR (PID $$)"
         return 0
       fi
+
+      log_error "Failed to acquire lock after stale reclaim (concurrent process?)"
+      _LOCK_DIR=""
+      return 1
     fi
 
     log_error "Project is locked by PID $owner_pid"

@@ -41,8 +41,8 @@ acquire_lock "$PROJECT_DIR"
 
 cleanup() {
   local exit_code=$?
-  restore_settings
-  release_lock
+  restore_settings || true
+  release_lock || true
   exit "$exit_code"
 }
 trap cleanup EXIT INT TERM

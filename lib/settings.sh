@@ -27,17 +27,18 @@ swap_settings() {
     return 1
   fi
 
+  # Track state before mutations so trap can restore on partial failure
+  _SETTINGS_TARGET="$target_settings"
+  _SETTINGS_BACKUP="$backup"
+
   # Backup original
   cp "$target_settings" "$backup"
+  _SETTINGS_SWAPPED=1
   log_info "Backed up settings to $backup"
 
   # Inject factory settings
   cp "$factory_settings" "$target_settings"
   log_info "Swapped in autonomous settings"
-
-  _SETTINGS_SWAPPED=1
-  _SETTINGS_TARGET="$target_settings"
-  _SETTINGS_BACKUP="$backup"
 }
 
 # Restore original settings from backup.
