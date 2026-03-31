@@ -53,12 +53,21 @@ else
   log_info "Skipping settings swap (--skip-settings-swap)"
 fi
 
-# TODO: Mode routing
-# case "$MODE" in
-#   issue)      ... ;;
-#   discover)   ... ;;
-#   spec)       ... ;;
-#   interactive) ... ;;
-# esac
+# --- Mode routing ---
+
+case "$MODE" in
+  issue)
+    generate_and_review_spec
+    ;;
+  discover)
+    log_warn "Discover mode not yet implemented"
+    ;;
+  spec)
+    log_warn "Spec mode not yet implemented"
+    ;;
+  interactive)
+    log_warn "Interactive mode not yet implemented"
+    ;;
+esac
 
 # TODO: Summary and cleanup (phase 9)
