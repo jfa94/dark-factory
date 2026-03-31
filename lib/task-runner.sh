@@ -283,10 +283,25 @@ _invoke_claude() {
   fi
   args+=(-p "$prompt_content")
 
+  # Set up per-attempt log files if log dir available
+  local stderr_log="/dev/null"
+  if [[ -n "${FACTORY_LOG_DIR:-}" && -n "${_CURRENT_TASK_ID:-}" ]]; then
+    local log_prefix="${FACTORY_LOG_DIR}/${_CURRENT_TASK_ID}-attempt-${_CURRENT_ATTEMPT:-1}"
+    stderr_log="${log_prefix}.stderr.log"
+  fi
+
   # Run Claude in background with spinner
-  "${args[@]}" > "$output_file" 2>&1 &
+  "${args[@]}" > "$output_file" 2>"$stderr_log" &
   spin $!
-  return $?
+  local rc=$?
+
+  # Copy Claude output to log dir
+  if [[ -n "${FACTORY_LOG_DIR:-}" && -n "${_CURRENT_TASK_ID:-}" ]]; then
+    local log_prefix="${FACTORY_LOG_DIR}/${_CURRENT_TASK_ID}-attempt-${_CURRENT_ATTEMPT:-1}"
+    cp "$output_file" "${log_prefix}.json" 2>/dev/null || true
+  fi
+
+  return $rc
 }
 
 # Run auto-fix: formatting then linting (non-fatal).
@@ -317,7 +332,16 @@ _run_quality_gate() {
 
   log_info "Running quality gate"
 
-  if (cd "$PROJECT_DIR" && pnpm quality > "$output_file" 2>&1); then
+  local rc=0
+  (cd "$PROJECT_DIR" && pnpm quality > "$output_file" 2>&1) || rc=$?
+
+  # Copy quality output to per-attempt log
+  if [[ -n "${FACTORY_LOG_DIR:-}" && -n "${_CURRENT_TASK_ID:-}" ]]; then
+    local log_prefix="${FACTORY_LOG_DIR}/${_CURRENT_TASK_ID}-attempt-${_CURRENT_ATTEMPT:-1}"
+    cp "$output_file" "${log_prefix}.quality.log" 2>/dev/null || true
+  fi
+
+  if [[ "$rc" -eq 0 ]]; then
     log_success "Quality gate passed"
     return 0
   else
@@ -337,6 +361,7 @@ run_task() {
 
   TASK_OUTCOME=""
   TASK_FAILURE_TYPE=""
+  _CURRENT_TASK_ID="$task_id"
 
   log_info "Starting task: $task_id"
 
@@ -361,6 +386,7 @@ run_task() {
 
   while [[ "$attempt" -le "$max_retries" ]]; do
     attempt=$(( attempt + 1 ))
+    _CURRENT_ATTEMPT="$attempt"
 
     # Circuit breaker check before each attempt
     if ! check_time_circuit_breaker; then

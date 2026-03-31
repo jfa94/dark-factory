@@ -352,6 +352,12 @@ review_task() {
   fi
   rm -f "$prompt_file"
 
+  # Log review output
+  if [[ -n "${FACTORY_LOG_DIR:-}" ]]; then
+    local log_prefix="${FACTORY_LOG_DIR}/${task_id}-attempt-${_CURRENT_ATTEMPT:-1}"
+    cp "$review_output_file" "${log_prefix}.review.json" 2>/dev/null || true
+  fi
+
   # Parse verdict
   local verdict
   verdict="$(_parse_verdict "$review_output_file")"
