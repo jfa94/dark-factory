@@ -241,6 +241,26 @@ The previous attempt completed but produced no git changes. This likely means th
 - Make concrete changes — do not just analyze
 GUIDANCE
       ;;
+    code_review)
+      cat >> "$prompt_file" <<'GUIDANCE'
+### Guidance: Code Review Requested Changes
+
+The implementation was completed and passed the quality gate, but the code review identified issues that must be fixed.
+
+**Review findings:**
+
+```
+GUIDANCE
+      printf '%s\n' "$failure_output" >> "$prompt_file"
+      cat >> "$prompt_file" <<'GUIDANCE'
+```
+
+- Address each numbered finding from the review
+- Do not break existing tests — fix the implementation, not the tests
+- Focus on logic errors, edge cases, and correctness issues
+- Run `pnpm quality` after making changes
+GUIDANCE
+      ;;
   esac
 
   printf '%s' "$prompt_file"
