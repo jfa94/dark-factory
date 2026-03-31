@@ -130,10 +130,10 @@ _invoke_review() {
   local prompt_content
   prompt_content="$(cat "$prompt_file")"
 
-  local -a args=(claude --print --model sonnet --max-turns "$REVIEW_TURNS" -C "$PROJECT_DIR")
+  local -a args=(claude --print --model sonnet --max-turns "$REVIEW_TURNS")
   args+=(-p "$prompt_content")
 
-  "${args[@]}" > "$output_file" 2>&1 &
+  (cd "$PROJECT_DIR" && "${args[@]}") > "$output_file" 2>&1 &
   register_bg_pid $!
   spin $!
   return $?

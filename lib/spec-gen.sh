@@ -95,17 +95,24 @@ _run_spec_generation() {
 
   log_info "Running spec generation (max turns: $turns)"
 
-  claude --print --model sonnet --max-turns "$turns" \
-    -C "$PROJECT_DIR" \
-    -p "$(cat "$prompt_file")" \
-    > /dev/null 2>&1 &
+  local gen_output_file
+  gen_output_file="$(factory_mktemp)"
+
+  (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns "$turns" \
+    -p "$(cat "$prompt_file")") \
+    > "$gen_output_file" 2>&1 &
   local pid=$!
   register_bg_pid $pid
   spin $pid || {
     log_error "Claude spec generation failed"
+    tail -20 "$gen_output_file" | while IFS= read -r line; do
+      log_error "  $line"
+    done
+    rm -f "$gen_output_file"
     return 1
   }
 
+  rm -f "$gen_output_file"
   return 0
 }
 
@@ -130,10 +137,9 @@ _run_spec_review() {
 
   log_info "Running spec review"
 
-  claude --print --model sonnet --max-turns 20 \
-    -C "$PROJECT_DIR" \
+  (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns 20 \
     --agent spec-reviewer \
-    -p "Review the spec in ${spec_dir}. Score each criterion and provide an overall score out of 60. List any blocking issues." \
+    -p "Review the spec in ${spec_dir}. Score each criterion and provide an overall score out of 60. List any blocking issues.") \
     > "$review_output_file" 2>&1 &
   local pid=$!
   register_bg_pid $pid
@@ -166,9 +172,8 @@ Spec directory:
 FIXHEADER
   printf '%s\n\nReview output:\n\n%s\n' "$spec_dir" "$review_output" >> "$fix_prompt_file"
 
-  claude --print --model sonnet --max-turns 20 \
-    -C "$PROJECT_DIR" \
-    -p "$(cat "$fix_prompt_file")" \
+  (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns 20 \
+    -p "$(cat "$fix_prompt_file")") \
     > /dev/null 2>&1 &
   local pid=$!
   register_bg_pid $pid

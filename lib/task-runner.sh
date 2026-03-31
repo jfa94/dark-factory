@@ -299,7 +299,7 @@ _invoke_claude() {
   prompt_content="$(cat "$prompt_file")"
 
   # Build args array
-  local -a args=(claude --print --max-turns "$_MAX_TURNS" -C "$PROJECT_DIR")
+  local -a args=(claude --print --max-turns "$_MAX_TURNS")
   if [[ ${#_MODEL_ARGS[@]} -gt 0 ]]; then
     args+=("${_MODEL_ARGS[@]}")
   fi
@@ -313,7 +313,7 @@ _invoke_claude() {
   fi
 
   # Run Claude in background with spinner
-  "${args[@]}" > "$output_file" 2>"$stderr_log" &
+  (cd "$PROJECT_DIR" && "${args[@]}") > "$output_file" 2>"$stderr_log" &
   register_bg_pid $!
   spin $!
   local rc=$?
