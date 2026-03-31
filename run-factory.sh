@@ -57,6 +57,7 @@ fi
 
 case "$MODE" in
   issue)
+    check_usage_and_wait || true
     generate_and_review_spec
     ;;
   discover)
