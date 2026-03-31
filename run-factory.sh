@@ -66,11 +66,23 @@ else
   log_info "Skipping settings swap (--skip-settings-swap)"
 fi
 
+# --- Branch setup (before spec gen — hooks block writes on main/master) ---
+
+if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
+  setup_staging
+  reconcile_staging_with_develop
+  safe_checkout_staging
+fi
+
+# --- Rate limit pre-check (before any Claude invocations) ---
+
+check_claude_rate_limit
+
 # --- Mode routing ---
 
 case "$MODE" in
   issue)
-    check_usage_and_wait || true
+    check_usage_and_wait
     generate_and_review_spec
     ;;
   discover)
@@ -102,9 +114,7 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   # Resume detection
   check_resume "$PROJECT_DIR" "$_SLUG"
 
-  # Branch setup
-  setup_staging
-  reconcile_staging_with_develop
+  # Branch protection (branches already set up above)
   setup_branch_protection
 
   # Scaffolding
@@ -146,7 +156,7 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   commit_spec_to_staging "$_SPEC_DIR"
 
   # Execute tasks in dependency order
-  check_usage_and_wait || true
+  check_usage_and_wait
   execute_tasks || true
 
   # Completion: summary, issue management, merge wait, cleanup

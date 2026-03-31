@@ -305,15 +305,8 @@ _invoke_claude() {
   fi
   args+=(-p "$prompt_content")
 
-  # Set up per-attempt log files if log dir available
-  local stderr_log="/dev/null"
-  if [[ -n "${FACTORY_LOG_DIR:-}" && -n "${_CURRENT_TASK_ID:-}" ]]; then
-    local log_prefix="${FACTORY_LOG_DIR}/${_CURRENT_TASK_ID}-attempt-${_CURRENT_ATTEMPT:-1}"
-    stderr_log="${log_prefix}.stderr.log"
-  fi
-
-  # Run Claude in background with spinner
-  (cd "$PROJECT_DIR" && "${args[@]}") > "$output_file" 2>"$stderr_log" &
+  # Run Claude in background with spinner (stderr merged for rate limit detection)
+  (cd "$PROJECT_DIR" && "${args[@]}") > "$output_file" 2>&1 &
   register_bg_pid $!
   spin $!
   local rc=$?
@@ -458,6 +451,18 @@ run_task() {
       prev_exit_code="$claude_exit"
       rm -f "$claude_output_file"
       continue
+    fi
+
+    # Rate limit — wait for reset, don't count as a retry attempt
+    if [[ "$claude_exit" -ne 0 ]]; then
+      local reset_info
+      if reset_info="$(is_rate_limit_error "$claude_output_file")"; then
+        log_warn "Claude rate limited during task $task_id: $reset_info"
+        rm -f "$claude_output_file"
+        wait_for_claude_available "$reset_info"
+        attempt=$(( attempt - 1 ))  # don't count rate limit as an attempt
+        continue
+      fi
     fi
 
     # Agent error — non-zero exit that isn't max_turns

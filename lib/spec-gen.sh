@@ -64,56 +64,120 @@ _validate_tasks_json() {
 }
 
 # Build the spec generation prompt and write it to a temp file.
+# Inlines the prd-to-spec skill content (Claude runs in the target project,
+# not in dark-factory, so skills aren't available). Adapts interactive steps
+# for headless --print mode.
 # Returns the temp file path via stdout.
 _build_spec_prompt() {
   local prd_body="$1"
+  local spec_dir="$2"
   local prompt_file
   prompt_file="$(factory_mktemp)"
 
-  cat <<'PROMPT_HEADER' > "$prompt_file"
-You are generating vertical-slice specs from a PRD. Use the /prd-to-spec skill.
+  local skill_file="${FACTORY_DIR}/.claude/skills/prd-to-spec/SKILL.md"
 
-/prd-to-spec
+  cat <<PROMPT_HEADER > "$prompt_file"
+You are generating vertical-slice specs from a PRD in fully automated (headless) mode.
+There is no user to interact with — skip any steps that require user input.
 
-Here is the PRD to convert:
-
----
+Follow the spec generation process below. Key adaptations for headless mode:
+- Skip step 1 (finding the PRD) — it is provided below
+- Skip step 5 (quiz the user) — proceed directly with your best breakdown
+- For step 8 (create tasks) — always create tasks, do not ask
+- IMPORTANT: Write ALL spec files and tasks.json into this exact directory: ${spec_dir}
 
 PROMPT_HEADER
 
-  # Append PRD body safely (no variable expansion — written via cat)
+  # Inline the skill content (strip YAML frontmatter)
+  if [[ -f "$skill_file" ]]; then
+    sed -n '/^---$/,/^---$/!p' "$skill_file" >> "$prompt_file"
+  else
+    log_warn "prd-to-spec skill not found at $skill_file — using fallback prompt"
+    cat <<'FALLBACK' >> "$prompt_file"
+Break the PRD into vertical-slice specs. For each slice, write a Markdown spec in specs/features/<slug>/.
+Then create a tasks.json file in the same directory with all implementation tasks as a flat JSON array.
+Each task needs: task_id, title, description, files, acceptance_criteria, tests_to_write, depends_on.
+FALLBACK
+  fi
+
+  # Append the PRD body
+  cat >> "$prompt_file" <<'PRD_HEADER'
+
+---
+
+## PRD (provided — skip step 1)
+
+PRD_HEADER
+
   printf '%s\n' "$prd_body" >> "$prompt_file"
 
   printf '%s' "$prompt_file"
 }
 
-# Run Claude spec generation.
+# Run Claude spec generation with retry for transient errors.
+# Detects rate limits and API 500s, retries with backoff.
 # Returns 0 on success, 1 on failure.
 _run_spec_generation() {
   local prompt_file="$1"
   local turns="$2"
+  local max_transient_retries=3
+  local transient_attempt=0
 
-  log_info "Running spec generation (max turns: $turns)"
+  while [[ "$transient_attempt" -lt "$max_transient_retries" ]]; do
+    transient_attempt=$(( transient_attempt + 1 ))
 
-  local gen_output_file
-  gen_output_file="$(factory_mktemp)"
+    if [[ "$transient_attempt" -gt 1 ]]; then
+      local backoff=$(( transient_attempt * 15 ))
+      log_info "Retrying after ${backoff}s backoff (transient retry $transient_attempt/$max_transient_retries)"
+      sleep "$backoff"
+    fi
 
-  (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns "$turns" \
-    -p "$(cat "$prompt_file")") \
-    > "$gen_output_file" 2>&1 &
-  local pid=$!
-  register_bg_pid $pid
-  spin $pid || {
+    log_info "Running spec generation (max turns: $turns)"
+
+    local gen_output_file
+    gen_output_file="$(factory_mktemp)"
+
+    (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns "$turns" \
+      -p "$(cat "$prompt_file")") \
+      > "$gen_output_file" 2>&1 &
+    local pid=$!
+    register_bg_pid $pid
+
+    if spin $pid; then
+      rm -f "$gen_output_file"
+      return 0
+    fi
+
+    # Check if this is a rate limit error
+    local reset_info
+    if reset_info="$(is_rate_limit_error "$gen_output_file")"; then
+      log_warn "Claude rate limited during spec generation: $reset_info"
+      rm -f "$gen_output_file"
+      wait_for_claude_available "$reset_info"
+      continue
+    fi
+
+    # Check for transient API errors (500, 502, 503, 529)
+    if grep -qE 'API Error: (500|502|503|529)|Internal server error|overloaded' "$gen_output_file" 2>/dev/null; then
+      log_warn "Transient API error (attempt $transient_attempt/$max_transient_retries)"
+      tail -5 "$gen_output_file" | while IFS= read -r line; do
+        log_warn "  $line"
+      done
+      rm -f "$gen_output_file"
+      continue
+    fi
+
+    # Non-transient failure
     log_error "Claude spec generation failed"
     tail -20 "$gen_output_file" | while IFS= read -r line; do
       log_error "  $line"
     done
     rm -f "$gen_output_file"
     return 1
-  }
+  done
 
-  rm -f "$gen_output_file"
-  return 0
+  log_error "Spec generation failed after $max_transient_retries transient retries"
+  return 1
 }
 
 # Extract review score from spec-reviewer output.
@@ -232,7 +296,7 @@ generate_and_review_spec() {
 
   # Build prompt
   local prompt_file
-  prompt_file="$(_build_spec_prompt "$_PRD_BODY")"
+  prompt_file="$(_build_spec_prompt "$_PRD_BODY" "$spec_dir")"
 
   # --- Generation attempt (with one retry at higher budget) ---
 

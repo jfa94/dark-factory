@@ -281,8 +281,11 @@ execute_tasks() {
       return 1
     fi
 
-    # Usage check
-    check_usage_and_wait || true
+    # Usage check — fatal if usage cannot be determined
+    if ! check_usage_and_wait; then
+      log_error "Usage check failed — aborting task execution"
+      return 1
+    fi
 
     # Dependency check — skip if any dep failed or was skipped
     local blocking_dep

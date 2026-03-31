@@ -41,7 +41,6 @@ Do NOT flag:
 - Formatting, naming conventions, or lint violations
 - Minor style preferences
 - Suggestions that are "nice to have" but not critical
-- Issues already present before this change
 
 HEADER
   else

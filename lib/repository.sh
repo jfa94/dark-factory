@@ -49,6 +49,17 @@ reconcile_staging_with_develop() {
 
   git -C "$PROJECT_DIR" checkout staging --quiet
 
+  # Check if staging already contains all of develop's commits
+  if git -C "$PROJECT_DIR" merge-base --is-ancestor develop staging; then
+    if [[ "$(git -C "$PROJECT_DIR" rev-parse develop)" == "$(git -C "$PROJECT_DIR" rev-parse staging)" ]]; then
+      log_success "Staging already up to date with develop"
+    else
+      log_success "Staging already ahead of develop"
+    fi
+    git -C "$PROJECT_DIR" checkout "$original_branch" --quiet
+    return 0
+  fi
+
   # Try fast-forward first
   if git -C "$PROJECT_DIR" merge --ff-only develop &>/dev/null; then
     log_success "Staging fast-forwarded to develop"
