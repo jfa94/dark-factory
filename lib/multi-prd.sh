@@ -52,7 +52,7 @@ sequential_execution() {
     log_info "Processing PRD $i/$total: issue #$issue_number"
 
     local rc=0
-    "$FACTORY_DIR/run-factory.sh" "$PROJECT_DIR" --issue "$issue_number" --skip-settings-swap --skip-lock || rc=$?
+    "$FACTORY_DIR/run-factory.sh" "$PROJECT_DIR" --issue "$issue_number" --skip-lock || rc=$?
 
     if [[ "$rc" -eq 0 ]]; then
       log_success "PRD #$issue_number completed"
@@ -125,7 +125,7 @@ parallel_worktree_execution() {
 
     git -C "$PROJECT_DIR" worktree add "$worktree_path" staging --quiet
 
-    "$FACTORY_DIR/run-factory.sh" "$worktree_path" --issue "$issue_number" --skip-settings-swap &
+    "$FACTORY_DIR/run-factory.sh" "$worktree_path" --issue "$issue_number" &
     worker_pids+=($!)
     worker_issues+=("$issue_number")
     worker_paths+=("$worktree_path")
