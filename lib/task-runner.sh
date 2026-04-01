@@ -74,6 +74,13 @@ _create_feature_branch() {
   git -C "$PROJECT_DIR" ls-files --others --exclude-standard '.claude/settings*.json' \
     | xargs -I{} rm -f "$PROJECT_DIR/{}" 2>/dev/null || true
 
+  # Stash any dirty tracked files (e.g. .gitignore modified by init_log_dir)
+  local stashed=0
+  if ! git -C "$PROJECT_DIR" diff --quiet 2>/dev/null; then
+    git -C "$PROJECT_DIR" stash push --quiet -m "factory: pre-checkout stash"
+    stashed=1
+  fi
+
   # If branch already exists, check it out and rebase onto current staging
   if git -C "$PROJECT_DIR" rev-parse --verify "$branch" &>/dev/null; then
     log_info "Branch $branch already exists — resuming"
@@ -85,15 +92,18 @@ _create_feature_branch() {
       if ! git -C "$PROJECT_DIR" rebase staging --quiet 2>/dev/null; then
         log_error "Rebase of $branch onto staging failed — aborting rebase"
         git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
+        [[ "$stashed" -eq 1 ]] && git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true
         return 1
       fi
     fi
+    [[ "$stashed" -eq 1 ]] && git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true
     return 0
   fi
 
   # Create from staging
   git -C "$PROJECT_DIR" checkout staging --quiet
   git -C "$PROJECT_DIR" checkout -b "$branch" --quiet
+  [[ "$stashed" -eq 1 ]] && git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true
   log_info "Created branch $branch from staging"
 }
 
