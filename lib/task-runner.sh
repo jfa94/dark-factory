@@ -69,10 +69,25 @@ _create_feature_branch() {
   local task_id="$1"
   local branch="feat/${task_id}"
 
-  # If branch already exists, just check it out (resumed task)
+  # Remove untracked .claude/settings*.json — written by Claude Code at runtime,
+  # not gitignored on all branches, causes checkout conflicts.
+  git -C "$PROJECT_DIR" ls-files --others --exclude-standard '.claude/settings*.json' \
+    | xargs -I{} rm -f "$PROJECT_DIR/{}" 2>/dev/null || true
+
+  # If branch already exists, check it out and rebase onto current staging
   if git -C "$PROJECT_DIR" rev-parse --verify "$branch" &>/dev/null; then
     log_info "Branch $branch already exists — resuming"
     git -C "$PROJECT_DIR" checkout "$branch" --quiet
+
+    # Rebase onto staging so PRs don't conflict with staging advances
+    if ! git -C "$PROJECT_DIR" merge-base --is-ancestor staging "$branch" 2>/dev/null; then
+      log_info "Rebasing $branch onto staging"
+      if ! git -C "$PROJECT_DIR" rebase staging --quiet 2>/dev/null; then
+        log_error "Rebase of $branch onto staging failed — aborting rebase"
+        git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
+        return 1
+      fi
+    fi
     return 0
   fi
 
@@ -306,6 +321,7 @@ _invoke_claude() {
   if [[ ${#_MODEL_ARGS[@]} -gt 0 ]]; then
     args+=("${_MODEL_ARGS[@]}")
   fi
+  args+=(--settings "$FACTORY_SETTINGS")
   args+=(-p "$prompt_content")
 
   # Run Claude in background with spinner (stderr merged for rate limit detection)

@@ -138,6 +138,7 @@ _run_spec_generation() {
     gen_output_file="$(factory_mktemp)"
 
     (cd "$PROJECT_DIR" && claude --print --model opus --effort high --max-turns "$turns" \
+      --settings "$FACTORY_SETTINGS" \
       -p "$(cat "$prompt_file")") \
       > "$gen_output_file" 2>&1 &
     local pid=$!
@@ -212,6 +213,7 @@ _run_spec_review() {
 
   (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns 20 \
     --agent spec-reviewer \
+    --settings "$FACTORY_SETTINGS" \
     -p "Review the spec in ${spec_dir}. Score each criterion and provide an overall score out of 60. List any blocking issues.") \
     > "$review_output_file" 2>&1 &
   local pid=$!
@@ -291,6 +293,7 @@ COVERAGE_FIX
   fix_output_file="$(factory_mktemp)"
 
   (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns 40 \
+    --settings "$FACTORY_SETTINGS" \
     -p "$(cat "$fix_prompt_file")") \
     > "$fix_output_file" 2>&1 &
   local pid=$!

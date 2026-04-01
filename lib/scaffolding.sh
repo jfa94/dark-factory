@@ -121,6 +121,7 @@ ensure_scaffolding() {
   log_info "Creating scaffolding files via Claude"
 
   (cd "$PROJECT_DIR" && claude --print --model sonnet --max-turns 10 \
+    --settings "$FACTORY_SETTINGS" \
     -p "$(cat "$prompt_file")") \
     > /dev/null 2>&1 &
   register_bg_pid $!

@@ -5,7 +5,6 @@ set -euo pipefail
 MODE=""
 export ISSUE_NUMBER=""
 export SPEC_NAME=""
-export SKIP_SETTINGS_SWAP=0
 export SKIP_LOCK=0
 PROJECT_DIR=""
 
@@ -23,7 +22,6 @@ Modes:
   (no mode flag)         Interactive spec selection
 
 Options:
-  --skip-settings-swap   Skip injecting autonomous settings into target project
   --skip-lock            Skip lock acquisition (used by internal recursive calls)
   --help, -h             Show this help message
 
@@ -95,10 +93,6 @@ parse_args() {
           exit 1
         fi
         MODE="discover"
-        shift
-        ;;
-      --skip-settings-swap)
-        SKIP_SETTINGS_SWAP=1
         shift
         ;;
       --skip-lock)

@@ -14,9 +14,10 @@ REVIEW_TURNS="${REVIEW_TURNS:-30}"
 
 # Build the review prompt for a task.
 # Writes prompt to a temp file; prints file path to stdout.
+# Claude reads the diff itself via tools (Bash/Read/Grep/Glob).
 _build_review_prompt() {
   local task_json="$1"
-  local diff_content="$2"
+  local branch="$2"
   local is_followup="${3:-0}"
 
   local prompt_file
@@ -47,7 +48,7 @@ HEADER
     cat > "$prompt_file" <<'HEADER'
 # Code Review
 
-Review the diff below. Focus on:
+Review the changes for this task. Focus on:
 - Logic errors and incorrect control flow
 - Unhandled edge cases that could cause runtime failures
 - Incorrect business logic or misunderstood requirements
@@ -62,8 +63,7 @@ Do NOT flag:
 HEADER
   fi
 
-  {
-    cat <<CONTEXT
+  cat >> "$prompt_file" <<CONTEXT
 ## Task Context
 
 **Task:** ${title}
@@ -77,14 +77,12 @@ ${description}
 
 ${criteria}
 
-## Diff
+## Instructions
 
-\`\`\`diff
-CONTEXT
-    # Append diff content from file to avoid shell expansion issues
-    cat "$diff_content"
-    cat <<'VERDICT'
-```
+Run \`git diff staging...${branch}\` to see what changed. Use Read, Grep, and Glob to inspect
+specific files in more detail as needed. Exclude lockfiles and generated files from your review
+(pnpm-lock.yaml, package-lock.yaml, yarn.lock, claude-progress.json, feature-status.json,
+.claude/tool-audit.jsonl).
 
 ## Your Verdict
 
@@ -97,8 +95,7 @@ VERDICT: NEEDS_DISCUSSION
 If APPROVE: briefly state why the code is acceptable.
 If REQUEST_CHANGES: list specific issues that must be fixed (numbered).
 If NEEDS_DISCUSSION: explain what needs human judgment and why.
-VERDICT
-  } >> "$prompt_file"
+CONTEXT
 
   printf '%s' "$prompt_file"
 }
@@ -130,6 +127,8 @@ _invoke_review() {
   prompt_content="$(cat "$prompt_file")"
 
   local -a args=(claude --print --model sonnet --max-turns "$REVIEW_TURNS")
+  args+=(--tools "Bash,Read,Grep,Glob")
+  args+=(--settings "$FACTORY_SETTINGS")
   args+=(-p "$prompt_content")
 
   (cd "$PROJECT_DIR" && "${args[@]}") > "$output_file" 2>&1 &
@@ -312,26 +311,9 @@ review_task() {
 
   log_info "Starting code review for $task_id ($([ "$is_followup" -eq 1 ] && echo "follow-up" || echo "initial"))"
 
-  # Get the diff for review
-  local diff_file
-  diff_file="$(factory_mktemp)"
-  git -C "$PROJECT_DIR" diff "staging...$branch" > "$diff_file" 2>/dev/null || {
-    log_error "Failed to generate diff for $task_id"
-    rm -f "$diff_file"
-    return 1
-  }
-
-  # Check diff is non-empty
-  if [[ ! -s "$diff_file" ]]; then
-    log_warn "Empty diff for $task_id — nothing to review"
-    rm -f "$diff_file"
-    return 0
-  fi
-
-  # Build review prompt
+  # Build review prompt (Claude reads the diff via tools)
   local prompt_file
-  prompt_file="$(_build_review_prompt "$task_json" "$diff_file" "$is_followup")"
-  rm -f "$diff_file"
+  prompt_file="$(_build_review_prompt "$task_json" "$branch" "$is_followup")"
 
   # Run review in background with spinner
   local review_output_file

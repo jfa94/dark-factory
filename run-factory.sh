@@ -51,7 +51,6 @@ fi
 cleanup() {
   local exit_code=$?
   _kill_bg_pids || true
-  restore_settings || true
   release_lock || true
   if [[ -n "${FACTORY_TMP_DIR:-}" && -d "$FACTORY_TMP_DIR" ]]; then
     rm -rf "$FACTORY_TMP_DIR"
@@ -59,12 +58,6 @@ cleanup() {
   exit "$exit_code"
 }
 trap cleanup EXIT INT TERM
-
-if [[ "$SKIP_SETTINGS_SWAP" -eq 0 ]]; then
-  swap_settings "$PROJECT_DIR"
-else
-  log_info "Skipping settings swap (--skip-settings-swap)"
-fi
 
 # --- Branch setup (before spec gen — hooks block writes on main/master) ---
 

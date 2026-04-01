@@ -56,4 +56,21 @@ deploy_factory_configs() {
       log_success "Deployed: $f"
     done
   fi
+
+  _ensure_gitignore_entries "$project_dir"
+}
+
+# Append .claude/settings*.json entries to .gitignore if not already present.
+# Prevents Claude Code runtime files from being committed on feature branches.
+_ensure_gitignore_entries() {
+  local project_dir="$1"
+  local gitignore="$project_dir/.gitignore"
+  local entries=(
+    ".claude/settings.json"
+    ".claude/settings.autonomous.json"
+  )
+  [[ -f "$gitignore" ]] || return 0
+  for entry in "${entries[@]}"; do
+    grep -qF "$entry" "$gitignore" || printf '\n%s\n' "$entry" >> "$gitignore"
+  done
 }

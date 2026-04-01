@@ -61,6 +61,9 @@ spin() {
 
 FACTORY_TMP_DIR="$(mktemp -d)"
 
+# Path to factory autonomous settings (passed via --settings to all claude invocations).
+export FACTORY_SETTINGS="$FACTORY_DIR/templates/settings.autonomous.json"
+
 # Create temp files inside FACTORY_TMP_DIR for cleanup on exit.
 # Usage: factory_mktemp  (prints temp file path)
 factory_mktemp() {
