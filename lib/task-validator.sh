@@ -33,7 +33,8 @@ validate_tasks() {
           (if .task_id         == null or .task_id         == "" then "task_id"             else empty end),
           (if .title            == null or .title            == "" then "title"              else empty end),
           (if .depends_on       == null                           then "depends_on"          else empty end),
-          (if .acceptance_criteria == null                        then "acceptance_criteria"  else empty end)
+          (if .acceptance_criteria == null                        then "acceptance_criteria"  else empty end),
+          (if .tests_to_write   == null or (.tests_to_write | length) == 0 then "tests_to_write" else empty end)
         ]
       )
     } | select(.missing | length > 0)]
@@ -46,10 +47,6 @@ validate_tasks() {
       errors+=("$line")
     done <<< "$field_errors"
   fi
-
-  # Collect all task_ids
-  local all_ids
-  all_ids="$(jq -r '.[].task_id // empty' "$tasks_file")"
 
   # Check for dangling dependency references
   local dangling

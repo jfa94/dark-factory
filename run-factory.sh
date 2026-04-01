@@ -87,12 +87,21 @@ case "$MODE" in
     ;;
   discover)
     discover_and_process_prds
+    exit $?
     ;;
   spec)
-    log_warn "Spec mode not yet implemented"
+    _spec_dir_check="${PROJECT_DIR}/specs/features/${SPEC_NAME}"
+    if [[ ! -f "${_spec_dir_check}/tasks.json" ]]; then
+      log_error "Spec not found: ${_spec_dir_check}"
+      log_error "  Create the spec first with --issue N, or pass a valid spec name"
+      exit 1
+    fi
+    log_info "Using existing spec: ${SPEC_NAME}"
     ;;
   interactive)
-    log_warn "Interactive mode not yet implemented"
+    show_help
+    log_error "No mode specified — pass --issue N, --discover, or a spec name"
+    exit 1
     ;;
 esac
 
@@ -108,11 +117,20 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   _SPEC_DIR="specs/features/${_SLUG}"
   _TASKS_FILE="${PROJECT_DIR}/${_SPEC_DIR}/tasks.json"
 
-  # Initialize log directory
-  init_log_dir "$PROJECT_DIR" "$_SLUG"
+  # Initialize log directory (spec-gen may have already done this)
+  if [[ -z "${FACTORY_LOG_DIR:-}" || ! -d "${FACTORY_LOG_DIR:-}" ]]; then
+    init_log_dir "$PROJECT_DIR" "$_SLUG"
+  fi
 
-  # Resume detection
-  check_resume "$PROJECT_DIR" "$_SLUG"
+  # Resume detection — outputs nothing (fresh start) or log_dir on line 1,
+  # completed task IDs on remaining lines (resume)
+  _resume_data="$(check_resume "$PROJECT_DIR" "$_SLUG")"
+  _resume_log_dir=""
+  _resume_skip_set=""
+  if [[ -n "$_resume_data" ]]; then
+    _resume_log_dir="$(head -1 <<< "$_resume_data")"
+    _resume_skip_set="$(tail -n +2 <<< "$_resume_data")"
+  fi
 
   # Branch protection (branches already set up above)
   setup_branch_protection
@@ -133,21 +151,21 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   done
 
   # If resuming, pre-populate skip set and prior PR URLs
-  if [[ -n "${RESUME_SKIP_SET:-}" ]]; then
+  if [[ -n "$_resume_skip_set" ]]; then
     while IFS= read -r skip_tid; do
       [[ -z "$skip_tid" ]] && continue
       _TASK_STATUS["$skip_tid"]="success"
       log_info "Resume: marking $skip_tid as completed (skipping)"
-    done <<< "$RESUME_SKIP_SET"
+    done <<< "$_resume_skip_set"
 
     # Restore PR mapping from prior run
-    if [[ -n "${RESUME_LOG_DIR:-}" && -f "${RESUME_LOG_DIR}/pr-map.log" ]]; then
+    if [[ -n "$_resume_log_dir" && -f "${_resume_log_dir}/pr-map.log" ]]; then
       _resume_repo_url="$(git -C "$PROJECT_DIR" remote get-url origin)" || true
       _resume_nwo="$(printf '%s' "$_resume_repo_url" | sed -E 's#(https://github\.com/|git@github\.com:)##' | sed 's/\.git$//')"
       while IFS='=' read -r tid pr_num; do
         [[ -z "$tid" ]] && continue
         _TASK_PR_URL["$tid"]="https://github.com/${_resume_nwo}/pull/${pr_num}"
-      done < "${RESUME_LOG_DIR}/pr-map.log"
+      done < "${_resume_log_dir}/pr-map.log"
       unset _resume_repo_url _resume_nwo
     fi
   fi

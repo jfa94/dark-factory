@@ -15,6 +15,9 @@ _MAX_TURNS=60
 _CURRENT_TASK_ID=""
 _CURRENT_ATTEMPT=0
 
+# Cross-file out-variable: set by code-review.sh to signal retry context to run_task()
+export TASK_FAILURE_TYPE=""
+
 # --- Placeholder: circuit breaker (implemented in spec 07) ---
 
 check_time_circuit_breaker() {
@@ -100,9 +103,9 @@ _build_task_prompt() {
   local files
   files="$(printf '%s' "$task_json" | jq -r '.files // [] | .[] | "- " + .')"
 
-  # Extract test requirements if present
+  # Extract tests_to_write if present (format as bullet list)
   local test_reqs
-  test_reqs="$(printf '%s' "$task_json" | jq -r '.test_requirements // .testing // empty')"
+  test_reqs="$(printf '%s' "$task_json" | jq -r '(.tests_to_write // .test_requirements // .testing // []) | if type == "array" then .[] | "- " + . else . end')"
 
   cat > "$prompt_file" <<PROMPT
 # Task: ${title}
@@ -137,7 +140,7 @@ PROMPT
   if [[ -n "$test_reqs" ]]; then
     cat >> "$prompt_file" <<PROMPT
 
-## Test Requirements
+## Tests to Write
 
 ${test_reqs}
 PROMPT
@@ -339,8 +342,8 @@ _run_auto_fix() {
   fi
 
   # Lint fix — non-fatal
-  if ! (cd "$PROJECT_DIR" && pnpm lint --fix 2>/dev/null); then
-    log_warn "Auto-fix: pnpm lint --fix failed (non-fatal)"
+  if ! (cd "$PROJECT_DIR" && pnpm lint:fix 2>/dev/null); then
+    log_warn "Auto-fix: pnpm lint:fix failed (non-fatal)"
   fi
 
   # Stage any auto-fix changes
@@ -380,11 +383,11 @@ _run_quality_gate() {
 # Execute a single task end-to-end with retry.
 # Usage: run_task <task_id>
 # Returns 0 on success, 1 on failure.
-# Sets TASK_OUTCOME (success/failure) and TASK_FAILURE_TYPE.
+# Reads TASK_FAILURE_TYPE on entry (if set) to seed retry context; clears it after reading.
 run_task() {
   local task_id="$1"
 
-  TASK_OUTCOME=""
+  local prev_failure_type="${TASK_FAILURE_TYPE:-}"
   TASK_FAILURE_TYPE=""
   _CURRENT_TASK_ID="$task_id"
 
@@ -405,7 +408,6 @@ run_task() {
 
   local attempt=0
   local max_retries="$MAX_TASK_RETRIES"
-  local prev_failure_type=""
   local prev_failure_output=""
   local prev_exit_code=0
 
@@ -416,8 +418,6 @@ run_task() {
     # Circuit breaker check before each attempt
     if ! check_time_circuit_breaker; then
       log_error "Circuit breaker tripped — aborting task $task_id"
-      TASK_OUTCOME="failure"
-      TASK_FAILURE_TYPE="circuit_breaker"
       return 1
     fi
 
@@ -429,7 +429,7 @@ run_task() {
 
     # Build prompt (initial or retry)
     local prompt_file
-    if [[ "$attempt" -eq 1 ]]; then
+    if [[ "$attempt" -eq 1 && -z "$prev_failure_type" ]]; then
       prompt_file="$(_build_task_prompt "$task_json")"
     else
       prompt_file="$(_build_retry_prompt "$task_json" "$prev_failure_type" "$prev_failure_output" "$prev_exit_code" "$attempt")"
@@ -498,8 +498,6 @@ run_task() {
     if _run_quality_gate "$quality_output_file"; then
       rm -f "$quality_output_file"
       log_success "Task $task_id completed successfully"
-      TASK_OUTCOME="success"
-      TASK_FAILURE_TYPE=""
       return 0
     fi
 
@@ -514,7 +512,5 @@ run_task() {
 
   # All attempts exhausted
   log_error "Task $task_id failed after $attempt attempts (last failure: $prev_failure_type)"
-  TASK_OUTCOME="failure"
-  TASK_FAILURE_TYPE="$prev_failure_type"
   return 1
 }

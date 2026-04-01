@@ -153,6 +153,13 @@ Ask the user if they would like to decompose the specs into agent-friendly tasks
 3. lists exact files to create or modify (max 3 files per task)
 4. specifies which tests to write.
 
+<test-coverage-rules>
+- **Minimum ratio**: Every acceptance criterion MUST have at least one corresponding entry in `tests_to_write`. A task with N acceptance criteria must have >= N entries in `tests_to_write`.
+- **Edge case mandate**: For any criterion involving validation, storage, permissions, or error handling, include at least one error-path or boundary test beyond the happy-path test.
+- **Format enforcement**: Each `tests_to_write` entry MUST follow the format `filename.test.ts: description of what it asserts`. Entries like "test that it works" or "integration test" are insufficient.
+- **Anti-degradation guard**: After writing all tasks, re-verify the LAST 5 tasks in the array. These are the most prone to coverage degradation. If any task has fewer `tests_to_write` entries than `acceptance_criteria` entries, add the missing tests before finalizing.
+</test-coverage-rules>
+
 Tasks from later phases MUST list tasks from earlier phases in their `depends_on` array so the factory can execute them in the correct order.
 
 Output the entire list as a single JSON array in ONE file called `tasks.json` in the feature directory (e.g., `specs/features/user-onboarding/tasks.json`). Do NOT create separate task files per spec — all tasks go in this one file. Fields: task_id, title, description, files, acceptance_criteria, tests_to_write, depends_on (array of task_ids).

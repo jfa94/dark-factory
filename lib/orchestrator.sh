@@ -196,65 +196,58 @@ _execute_single_task() {
   }
 
   # Review the task
-  if review_task "$task_id" "$task_json"; then
-    _TASK_STATUS["$task_id"]="success"
+  local review_rc=0
+  review_task "$task_id" "$task_json" || review_rc=$?
 
-    # Capture PR URL from the branch (review_task creates the PR)
-    local pr_url
-    pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
-      --json url --jq '.url' 2>/dev/null)" || true
+  case "$review_rc" in
+    0)
+      _TASK_STATUS["$task_id"]="success"
 
-    if [[ -n "$pr_url" ]]; then
-      _TASK_PR_URL["$task_id"]="$pr_url"
-    fi
+      # Capture PR URL from the branch (review_task creates the PR)
+      local pr_url
+      pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
+        --json url --jq '.url' 2>/dev/null)" || true
 
-    return 0
-  fi
-
-  # Review returned REQUEST_CHANGES — feed back into runner as retry
-  if [[ "${REVIEW_VERDICT:-}" == "REQUEST_CHANGES" ]]; then
-    log_info "Review requested changes for $task_id — retrying with review findings"
-
-    # Re-run task with code_review failure context (task-runner handles the retry)
-    TASK_FAILURE_TYPE="code_review"
-    if run_task "$task_id"; then
-      # Retry succeeded — run follow-up review
-      if review_task "$task_id" "$task_json" 1; then
-        _TASK_STATUS["$task_id"]="success"
-
-        local pr_url
-        pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
-          --json url --jq '.url' 2>/dev/null)" || true
-
-        if [[ -n "$pr_url" ]]; then
-          _TASK_PR_URL["$task_id"]="$pr_url"
-        fi
-
-        return 0
+      if [[ -n "$pr_url" ]]; then
+        _TASK_PR_URL["$task_id"]="$pr_url"
       fi
-    fi
 
-    _TASK_STATUS["$task_id"]="failure"
-    return 1
-  fi
+      return 0
+      ;;
 
-  # NEEDS_DISCUSSION — PR created without auto-merge, treat as success
-  if [[ "${REVIEW_VERDICT:-}" == "NEEDS_DISCUSSION" ]]; then
-    _TASK_STATUS["$task_id"]="success"
+    1)
+      # REQUEST_CHANGES — code-review.sh set TASK_FAILURE_TYPE=code_review; retry
+      log_info "Review requested changes for $task_id — retrying with review findings"
 
-    local pr_url
-    pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
-      --json url --jq '.url' 2>/dev/null)" || true
+      if run_task "$task_id"; then
+        local followup_rc=0
+        review_task "$task_id" "$task_json" 1 || followup_rc=$?
 
-    if [[ -n "$pr_url" ]]; then
-      _TASK_PR_URL["$task_id"]="$pr_url"
-    fi
+        if [[ "$followup_rc" -eq 0 ]]; then
+          _TASK_STATUS["$task_id"]="success"
 
-    return 0
-  fi
+          local pr_url
+          pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
+            --json url --jq '.url' 2>/dev/null)" || true
 
-  _TASK_STATUS["$task_id"]="failure"
-  return 1
+          if [[ -n "$pr_url" ]]; then
+            _TASK_PR_URL["$task_id"]="$pr_url"
+          fi
+
+          return 0
+        fi
+      fi
+
+      _TASK_STATUS["$task_id"]="failure"
+      return 1
+      ;;
+
+    *)
+      # Hard failure (review session crashed, unexpected verdict)
+      _TASK_STATUS["$task_id"]="failure"
+      return 1
+      ;;
+  esac
 }
 
 # --- Public interface ---
@@ -294,6 +287,7 @@ execute_tasks() {
     else
       log_warn "Skipping $task_id — dependency $blocking_dep failed or was skipped"
       _TASK_STATUS["$task_id"]="skipped"
+      write_status "$task_id" "skipped"
       continue
     fi
 
@@ -301,6 +295,7 @@ execute_tasks() {
     if ! _wait_for_dependency_prs "$task_id"; then
       log_error "Dependency PR merge failed for $task_id — skipping"
       _TASK_STATUS["$task_id"]="skipped"
+      write_status "$task_id" "skipped"
       continue
     fi
 
@@ -319,6 +314,18 @@ execute_tasks() {
     else
       _CONSECUTIVE_FAILURES=$(( _CONSECUTIVE_FAILURES + 1 ))
       log_error "Task $task_id failed (consecutive failures: $_CONSECUTIVE_FAILURES)"
+    fi
+
+    # Persist status to disk immediately for resume support
+    case "${_TASK_STATUS[$task_id]:-failure}" in
+      success) write_status "$task_id" "ok" ;;
+      failure) write_status "$task_id" "failed" ;;
+      skipped) write_status "$task_id" "skipped" ;;
+    esac
+    if [[ -n "${_TASK_PR_URL[$task_id]:-}" ]]; then
+      local _pr_num
+      _pr_num="$(printf '%s' "${_TASK_PR_URL[$task_id]}" | grep -oE '[0-9]+$')" || true
+      [[ -n "$_pr_num" ]] && write_pr_map "$task_id" "$_pr_num"
     fi
 
   done <<< "$TASK_ORDER"

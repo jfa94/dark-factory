@@ -128,10 +128,12 @@ _parse_rate_limit_wait() {
 
   local target_epoch=""
   if printf '%s' "$time_str" | grep -q ':'; then
-    target_epoch="$(TZ="$tz" date -j -f "%Y-%m-%d %I:%M%p" "${today} ${time_str}" "+%s" 2>/dev/null)" || true
+    target_epoch="$(TZ="$tz" date -j -f "%Y-%m-%d %I:%M%p" "${today} ${time_str}" "+%s" 2>/dev/null)" \
+      || target_epoch="$(TZ="$tz" date -d "${today} ${time_str}" "+%s" 2>/dev/null)" || true
   fi
   if [[ -z "$target_epoch" ]]; then
-    target_epoch="$(TZ="$tz" date -j -f "%Y-%m-%d %I%p" "${today} ${time_str}" "+%s" 2>/dev/null)" || return 1
+    target_epoch="$(TZ="$tz" date -j -f "%Y-%m-%d %I%p" "${today} ${time_str}" "+%s" 2>/dev/null)" \
+      || target_epoch="$(TZ="$tz" date -d "${today} ${time_str}" "+%s" 2>/dev/null)" || return 1
   fi
 
   local now_epoch
@@ -233,26 +235,32 @@ check_claude_rate_limit() {
 # Fatal on any failure — the pipeline requires usage data to pace safely.
 check_usage_and_wait() {
   if [[ "$_USAGE_AVAILABLE" -eq 0 ]]; then
-    _load_oauth_token || return 1
+    if ! _load_oauth_token; then
+      log_warn "Usage monitoring unavailable — proceeding without rate pacing"
+      return 0
+    fi
   fi
 
   local usage_json
-  usage_json="$(_fetch_usage)" || return 1
+  usage_json="$(_fetch_usage)" || {
+    log_warn "Usage API unavailable — proceeding without rate pacing"
+    return 0
+  }
 
   # Parse fields
   local utilization resets_at
   utilization="$(printf '%s' "$usage_json" | jq -r '.five_hour.utilization // empty')" || {
-    log_error "Could not parse utilization from usage response"
-    return 1
+    log_warn "Could not parse utilization from usage response — skipping pacing"
+    return 0
   }
   resets_at="$(printf '%s' "$usage_json" | jq -r '.five_hour.resets_at // empty')" || {
-    log_error "Could not parse resets_at from usage response"
-    return 1
+    log_warn "Could not parse resets_at from usage response — skipping pacing"
+    return 0
   }
 
   if [[ -z "$utilization" || -z "$resets_at" ]]; then
-    log_error "Missing utilization or resets_at in usage response"
-    return 1
+    log_warn "Missing utilization or resets_at in usage response — skipping pacing"
+    return 0
   fi
 
   # Compute window position
@@ -260,7 +268,7 @@ check_usage_and_wait() {
   now_epoch="$(date "+%s")"
   reset_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${resets_at%%.*}" "+%s" 2>/dev/null)" \
     || reset_epoch="$(TZ=UTC date -d "${resets_at%%.*}" "+%s" 2>/dev/null)" \
-    || { log_error "Could not parse reset time: $resets_at"; return 1; }
+    || { log_warn "Could not parse reset time: $resets_at — skipping pacing"; return 0; }
 
   local window_start window_elapsed window_hour hourly_threshold
   window_start=$(( reset_epoch - 5 * 3600 ))

@@ -62,7 +62,8 @@ Do NOT flag:
 HEADER
   fi
 
-  cat >> "$prompt_file" <<CONTEXT
+  {
+    cat <<CONTEXT
 ## Task Context
 
 **Task:** ${title}
@@ -80,11 +81,9 @@ ${criteria}
 
 \`\`\`diff
 CONTEXT
-
-  # Append diff content from file to avoid shell expansion issues
-  cat "$diff_content" >> "$prompt_file"
-
-  cat >> "$prompt_file" <<'VERDICT'
+    # Append diff content from file to avoid shell expansion issues
+    cat "$diff_content"
+    cat <<'VERDICT'
 ```
 
 ## Your Verdict
@@ -99,6 +98,7 @@ If APPROVE: briefly state why the code is acceptable.
 If REQUEST_CHANGES: list specific issues that must be fixed (numbered).
 If NEEDS_DISCUSSION: explain what needs human judgment and why.
 VERDICT
+  } >> "$prompt_file"
 
   printf '%s' "$prompt_file"
 }
@@ -179,32 +179,33 @@ BODY
 
   if [[ -n "$test_files" ]]; then
     printf '%s\n' "$test_files" | while IFS= read -r f; do
-      printf -- '- `%s`\n' "$f" >> "$body_file"
+      printf -- "- \`%s\`\n" "$f" >> "$body_file"
     done
   else
     printf 'No test files detected in diff.\n' >> "$body_file"
   fi
 
-  cat >> "$body_file" <<'DELIM'
+  {
+    cat <<'DELIM'
 
 ### Review Findings
 
 DELIM
-
-  if [[ -f "$review_output_file" ]]; then
-    cat >> "$body_file" <<'DELIM'
+    if [[ -f "$review_output_file" ]]; then
+      cat <<'DELIM'
 <details>
 <summary>Code review output</summary>
 
 DELIM
-    cat "$review_output_file" >> "$body_file"
-    cat >> "$body_file" <<'DELIM'
+      cat "$review_output_file"
+      cat <<'DELIM'
 
 </details>
 DELIM
-  else
-    printf 'No review output available.\n' >> "$body_file"
-  fi
+    else
+      printf 'No review output available.\n'
+    fi
+  } >> "$body_file"
 
   printf '%s' "$body_file"
 }
@@ -292,22 +293,16 @@ HEADER
 
 # Review a completed task and create a PR.
 # Usage: review_task <task_id> <task_json>
-# Sets REVIEW_VERDICT (APPROVE/REQUEST_CHANGES/NEEDS_DISCUSSION).
-# Returns 0 on success, 1 on failure.
-# On REQUEST_CHANGES, sets REVIEW_FINDINGS with the review output
-# and returns 1 with TASK_FAILURE_TYPE=code_review so the runner retries.
+# Returns 0 on APPROVE or NEEDS_DISCUSSION (PR created), 1 on REQUEST_CHANGES,
+# 2 on hard failure. On REQUEST_CHANGES, also sets TASK_FAILURE_TYPE=code_review.
 review_task() {
   local task_id="$1"
   local task_json="$2"
   local is_followup="${3:-0}"
 
-  REVIEW_VERDICT=""
-  REVIEW_FINDINGS=""
-
   # Skip if review is disabled
   if [[ "${ENABLE_CODE_REVIEW}" -eq 0 ]]; then
     log_info "Code review disabled — skipping"
-    REVIEW_VERDICT="APPROVE"
     return 0
   fi
 
@@ -330,7 +325,6 @@ review_task() {
   if [[ ! -s "$diff_file" ]]; then
     log_warn "Empty diff for $task_id — nothing to review"
     rm -f "$diff_file"
-    REVIEW_VERDICT="APPROVE"
     return 0
   fi
 
@@ -347,8 +341,7 @@ review_task() {
   if ! _invoke_review "$prompt_file" "$review_output_file"; then
     log_error "Review session failed for $task_id"
     rm -f "$prompt_file" "$review_output_file"
-    REVIEW_VERDICT="NEEDS_DISCUSSION"
-    return 1
+    return 2
   fi
   rm -f "$prompt_file"
 
@@ -361,7 +354,6 @@ review_task() {
   # Parse verdict
   local verdict
   verdict="$(_parse_verdict "$review_output_file")"
-  REVIEW_VERDICT="$verdict"
 
   log_info "Review verdict for $task_id: $verdict"
 
@@ -390,9 +382,7 @@ review_task() {
     REQUEST_CHANGES)
       log_warn "Review requested changes for $task_id"
 
-      # Stash findings for retry context
-      REVIEW_FINDINGS="$(cat "$review_output_file" 2>/dev/null || true)"
-      TASK_FAILURE_TYPE="code_review"
+      export TASK_FAILURE_TYPE="code_review"
       rm -f "$review_output_file"
       return 1
       ;;
@@ -421,8 +411,7 @@ review_task() {
     *)
       log_error "Unexpected review verdict: $verdict"
       rm -f "$review_output_file"
-      REVIEW_VERDICT="NEEDS_DISCUSSION"
-      return 1
+      return 2
       ;;
   esac
 }

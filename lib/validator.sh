@@ -42,6 +42,11 @@ validate_project() {
     errors+=("prd-to-spec skill not found in $dir/.claude/skills/ or $home_claude/skills/")
   fi
 
+  # Agent check: warn (not error) if agents directory is missing
+  if [[ ! -d "$dir/.claude/agents" && ! -d "$home_claude/agents" ]]; then
+    log_warn "No .claude/agents/ directory found — code-review.sh requires spec-reviewer agent"
+  fi
+
   # --- Report ---
 
   if [[ ${#errors[@]} -gt 0 ]]; then

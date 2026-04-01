@@ -22,11 +22,13 @@ log_success() { printf "${_GREEN}[SUCCESS]${_RESET} %s\n" "$*" >&2; }
 
 # --- Utilities ---
 
-# Convert a string to a filesystem-safe slug (lowercase, hyphens, no special chars)
-# Usage: slugify_title "My [PRD] Issue Title!" => "my-prd-issue-title"
+# Convert a string to a filesystem-safe slug (lowercase, hyphens, no special chars).
+# Strips leading [PRD] prefix (case-insensitive) before slugifying.
+# Usage: slugify_title "[PRD] My Issue Title!" => "my-issue-title"
 slugify_title() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
+    | sed 's/^\[prd\] *//' \
     | sed 's/[^a-z0-9]/-/g' \
     | sed 's/-\{2,\}/-/g' \
     | sed 's/^-//;s/-$//'
@@ -36,7 +38,7 @@ slugify_title() {
 # Usage: some_command & spin $!
 spin() {
   local pid=$1
-  local frames='|/-\'
+  local frames=$'|/-\\'
   local i=0
 
   # Skip animation if not a terminal

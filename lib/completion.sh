@@ -13,16 +13,14 @@ COMPLETION_PR_POLL_INTERVAL="${COMPLETION_PR_POLL_INTERVAL:-30}"
 # --- Resume detection ---
 
 # Check for prior runs of a spec and prompt user to resume or start fresh.
-# Sets RESUME_LOG_DIR (path to prior log dir) and RESUME_SKIP_SET (newline-
-# separated task IDs to skip) if resuming; both empty if starting fresh.
+# Outputs resume data to stdout if resuming: line 1 = log dir path,
+# remaining lines = completed task IDs (newline-separated).
+# Outputs nothing if starting fresh or no prior run found.
 # Usage: check_resume <project_dir> <spec_slug>
 check_resume() {
-  local project_dir="$1"
+  local target_dir="$1"
   local spec_slug="$2"
-  local logs_base="${project_dir}/logs/${spec_slug}"
-
-  RESUME_LOG_DIR=""
-  RESUME_SKIP_SET=""
+  local logs_base="${target_dir}/logs/${spec_slug}"
 
   if [[ ! -d "$logs_base" ]]; then
     return 0
@@ -31,7 +29,7 @@ check_resume() {
   # Find most recent log directory with a status.log
   local latest_dir=""
   local dirs
-  dirs="$(ls -1d "${logs_base}"/*/ 2>/dev/null | sort -r)" || return 0
+  dirs="$(find "${logs_base}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r)" || return 0
 
   while IFS= read -r dir; do
     [[ -z "$dir" ]] && continue
@@ -68,9 +66,9 @@ check_resume() {
     read -rp "  Enter choice (r/f): " choice
     case "$choice" in
       r|R)
-        RESUME_LOG_DIR="$latest_dir"
-        RESUME_SKIP_SET="$completed"
         log_info "Resuming from prior run"
+        printf '%s\n' "$latest_dir"
+        printf '%s\n' "$completed"
         return 0
         ;;
       f|F)
@@ -88,18 +86,18 @@ check_resume() {
 # Outputs context string for passing to Claude prompts.
 # Usage: get_resume_context <project_dir> <task_id>
 get_resume_context() {
-  local project_dir="$1"
+  local target_dir="$1"
   local task_id="$2"
   local branch="feat/${task_id}"
 
   # Check if branch exists
-  if ! git -C "$project_dir" rev-parse --verify "$branch" &>/dev/null; then
+  if ! git -C "$target_dir" rev-parse --verify "$branch" &>/dev/null; then
     return 0
   fi
 
   # Get commits ahead of staging
   local ahead
-  ahead="$(git -C "$project_dir" log --oneline "staging..$branch" 2>/dev/null)" || return 0
+  ahead="$(git -C "$target_dir" log --oneline "staging..$branch" 2>/dev/null)" || return 0
 
   if [[ -z "$ahead" ]]; then
     return 0

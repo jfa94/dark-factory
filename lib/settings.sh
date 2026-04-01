@@ -11,13 +11,13 @@ _SETTINGS_BACKUP=""
 _SETTINGS_CREATED_DIR=0
 _SETTINGS_NO_ORIGINAL=0
 
-# Copy factory settings.autonomous.json into target .claude/settings.json.
+# Copy factory settings.autonomous.json into target .claude/settings.local.json.
 # Backs up the original first. Creates .claude/ if missing.
 swap_settings() {
   local project_dir="$1"
   local target_dir="$project_dir/.claude"
-  local target_settings="$target_dir/settings.json"
-  local backup="$target_dir/settings.json.bak"
+  local target_settings="$target_dir/settings.local.json"
+  local backup="$target_dir/settings.local.json.bak"
   local factory_settings="$FACTORY_DIR/templates/settings.autonomous.json"
 
   if [[ ! -f "$factory_settings" ]]; then
@@ -41,7 +41,7 @@ swap_settings() {
     log_info "Backed up settings to $backup"
   else
     _SETTINGS_NO_ORIGINAL=1
-    log_info "No existing settings.json — will remove on restore"
+    log_info "No existing settings.local.json — will remove on restore"
   fi
 
   _SETTINGS_SWAPPED=1

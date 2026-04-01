@@ -3,10 +3,10 @@ set -euo pipefail
 
 # Shared variables set by parse_args
 MODE=""
-ISSUE_NUMBER=""
-SPEC_NAME=""
-SKIP_SETTINGS_SWAP=0
-SKIP_LOCK=0
+export ISSUE_NUMBER=""
+export SPEC_NAME=""
+export SKIP_SETTINGS_SWAP=0
+export SKIP_LOCK=0
 PROJECT_DIR=""
 
 show_help() {
@@ -41,7 +41,7 @@ Environment variables:
   MAX_SPEC_ITERATIONS        Spec review retry limit (default: 3)
   ENABLE_CODE_REVIEW         Enable code review phase (default: 1)
   REVIEW_TURNS               Claude turns for code review (default: 30)
-  MAX_TASKS                  Maximum parallel tasks (default: 4)
+  MAX_TASKS                  Maximum parallel tasks (default: 20)
   MAX_RUNTIME_MINUTES        Pipeline timeout in minutes (default: 120)
   MAX_CONSECUTIVE_FAILURES   Circuit breaker threshold (default: 3)
 EOF

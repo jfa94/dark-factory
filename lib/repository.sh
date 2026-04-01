@@ -31,6 +31,7 @@ setup_staging() {
     fi
     log_info "Creating staging branch from $base"
     git -C "$PROJECT_DIR" branch staging "$base"
+    git -C "$PROJECT_DIR" push -u origin staging --quiet || log_warn "Failed to push staging to remote"
   fi
 
   log_success "Branches ready (develop + staging)"

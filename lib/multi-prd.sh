@@ -45,6 +45,7 @@ sequential_execution() {
   local numbers=("$@")
   local total="${#numbers[@]}"
   local i=0
+  local failed=0
 
   for issue_number in "${numbers[@]}"; do
     i=$((i + 1))
@@ -57,8 +58,14 @@ sequential_execution() {
       log_success "PRD #$issue_number completed"
     else
       log_error "PRD #$issue_number failed (exit $rc)"
+      failed=$(( failed + 1 ))
     fi
   done
+
+  if [[ "$failed" -gt 0 ]]; then
+    log_error "$failed/$total PRDs failed"
+    return 1
+  fi
 }
 
 # --- Parallel (worktree) execution ---
@@ -86,6 +93,7 @@ parallel_worktree_execution() {
   local worker_paths=()
 
   # Trap to kill workers on interrupt, then re-raise for parent cleanup
+  # shellcheck disable=SC2329 # invoked via trap on line 107
   _worker_cleanup() {
     local sig="$1"
     log_warn "Interrupt received — terminating workers"
