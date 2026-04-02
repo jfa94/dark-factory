@@ -24,33 +24,11 @@ _deploy_if_missing() {
   _DEPLOYED_CONFIGS+=("$dest")
 }
 
-# Ensure packages are in devDependencies. Skips already-present packages.
-# Usage: _ensure_devdeps <project_dir> <pkg1> [pkg2 ...]
-_ensure_devdeps() {
-  local project_dir="$1"; shift
-  local missing=()
-
-  for pkg in "$@"; do
-    if ! jq -e --arg p "$pkg" '.devDependencies[$p] // empty' "$project_dir/package.json" &>/dev/null; then
-      missing+=("$pkg")
-    fi
-  done
-
-  if [[ ${#missing[@]} -eq 0 ]]; then
-    return 0
-  fi
-
-  log_info "Installing missing devDependencies: ${missing[*]}"
-  (cd "$project_dir" && pnpm add -D "${missing[@]}") || {
-    log_warn "Failed to install: ${missing[*]}"
-    return 1
-  }
-}
-
 # Deploy factory configs to a target project.
 # - quality-gate.yml  → always (if missing)
 # - .stryker.config.json  → only if package.json present and file missing
 # - .dependency-cruiser.cjs → only if package.json present and file missing
+# - package.scaffold.json → merged into package.json (scripts + devDeps) if package.json present
 # Only logs files that were actually deployed; single summary line if all present.
 deploy_factory_configs() {
   local project_dir="$1"
@@ -71,14 +49,19 @@ deploy_factory_configs() {
       "$FACTORY_DIR/templates/.dependency-cruiser.cjs" \
       "$project_dir/.dependency-cruiser.cjs"
 
-    # Ensure packages required by deployed configs are installed
-    _ensure_devdeps "$project_dir" \
-      "@stryker-mutator/core" \
-      "@stryker-mutator/vitest-runner" \
-      "@stryker-mutator/typescript-checker"
-
-    _ensure_devdeps "$project_dir" \
-      "dependency-cruiser"
+    # Merge scaffold scripts + devDependencies into package.json
+    local scaffold="$FACTORY_DIR/templates/package.scaffold.json"
+    if [[ -f "$scaffold" ]]; then
+      TARGET_PATH="$project_dir" SCAFFOLD_PATH="$FACTORY_DIR/templates" node -e "
+        const fs = require('fs');
+        const pkg = JSON.parse(fs.readFileSync(process.env.TARGET_PATH + '/package.json', 'utf8'));
+        const scaffold = JSON.parse(fs.readFileSync(process.env.SCAFFOLD_PATH + '/package.scaffold.json', 'utf8'));
+        pkg.scripts = Object.assign({}, pkg.scripts || {}, scaffold.scripts);
+        pkg.devDependencies = Object.assign({}, pkg.devDependencies || {}, scaffold.devDependencies);
+        fs.writeFileSync(process.env.TARGET_PATH + '/package.json', JSON.stringify(pkg, null, 2) + '\n');
+      "
+      _DEPLOYED_CONFIGS+=("$project_dir/package.json (scaffold merge)")
+    fi
   fi
 
   if [[ ${#_DEPLOYED_CONFIGS[@]} -eq 0 ]]; then

@@ -1,0 +1,26 @@
+{
+    "devDependencies": {
+        "vitest": "^4.1.2",
+        "@vitest/coverage-v8": "^4.1.2",
+        "@stryker-mutator/core": "^9.0.0",
+        "@stryker-mutator/vitest-runner": "^9.0.0",
+        "@stryker-mutator/typescript-checker": "^9.0.0",
+        "dependency-cruiser": "^17.0.0"
+    },
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint . --max-warnings 0",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:mutation": "stryker run",
+        "test:mutation:full": "stryker run --force",
+        "deps:validate": "depcruise src --output-type err",
+        "deps:graph": "depcruise src --include-only '^src' --output-type dot | dot -T svg > docs/dependency-graph.svg",
+        "audit": "npm audit --audit-level=high --omit=dev",
+        "quality": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:coverage && pnpm deps:validate && pnpm audit && pnpm test:mutation"
+    }
+}
