@@ -76,12 +76,12 @@ parallel_worktree_execution() {
   local titles=("${!2}")
   local total="${#numbers[@]}"
 
-  # --- Parent setup: staging branch + factory configs ---
+  # --- Parent setup: ensure staging branch exists for worktree creation ---
 
   setup_staging
   reconcile_staging_with_develop
 
-  deploy_factory_configs "$PROJECT_DIR"
+  # Config deployment handled by each worker's run-factory.sh invocation
 
   # --- Create worktrees and spawn workers ---
 

@@ -262,12 +262,17 @@ execute_tasks() {
     return 1
   fi
 
-  log_info "Starting task execution (max tasks: $MAX_TASKS, max runtime: ${MAX_RUNTIME_MINUTES}m)"
+  local _total_tasks
+  _total_tasks="$(printf '%s\n' "$TASK_ORDER" | grep -c .)" || _total_tasks="?"
 
+  log_header "Task Execution  (max: $MAX_TASKS tasks · ${MAX_RUNTIME_MINUTES}m runtime)"
+
+  local _task_num=0
   while IFS= read -r task_id; do
     [[ -z "$task_id" ]] && continue
+    _task_num=$(( _task_num + 1 ))
 
-    log_info "--- Task: $task_id ---"
+    log_header "Task ${_task_num}/${_total_tasks}: ${task_id}"
 
     # Circuit breakers
     if ! _check_circuit_breakers; then

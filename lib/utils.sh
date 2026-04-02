@@ -8,9 +8,11 @@ if [[ -z "${NO_COLOR:-}" && -t 2 ]]; then
   _YELLOW='\033[0;33m'
   _GREEN='\033[0;32m'
   _BLUE='\033[0;34m'
+  _CYAN='\033[0;36m'
+  _BOLD='\033[1m'
   _RESET='\033[0m'
 else
-  _RED='' _YELLOW='' _GREEN='' _BLUE='' _RESET=''
+  _RED='' _YELLOW='' _GREEN='' _BLUE='' _CYAN='' _BOLD='' _RESET=''
 fi
 
 # --- Logging (all output to stderr) ---
@@ -19,6 +21,8 @@ log_info()    { printf "${_BLUE}[INFO]${_RESET}    %s\n" "$*" >&2; }
 log_warn()    { printf "${_YELLOW}[WARN]${_RESET}    %s\n" "$*" >&2; }
 log_error()   { printf "${_RED}[ERROR]${_RESET}   %s\n" "$*" >&2; }
 log_success() { printf "${_GREEN}[SUCCESS]${_RESET} %s\n" "$*" >&2; }
+log_usage()   { printf "${_CYAN}[USAGE]${_RESET}   %s\n" "$*" >&2; }
+log_header()  { printf "\n${_BOLD}${_CYAN}=== %s ===${_RESET}\n" "$*" >&2; }
 
 # --- Utilities ---
 

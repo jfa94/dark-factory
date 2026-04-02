@@ -282,7 +282,13 @@ check_usage_and_wait() {
 
   local hard_cap="$USAGE_HARD_CAP_PCT"
 
-  log_info "Usage: ${utilization}% (5h window hour ${window_hour}, threshold ${hourly_threshold}%, hard cap ${hard_cap}%, resets at $resets_at)"
+  # Format resets_at as local HH:MM for readability
+  local resets_local
+  resets_local="$(date -j -f "%Y-%m-%dT%H:%M:%S" "${resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
+    || resets_local="$(date -d "${resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
+    || resets_local="${resets_at%%T*} ${resets_at##*T}"
+
+  log_usage "${utilization}% used · hour ${window_hour}/5 · threshold ${hourly_threshold}% · hard cap ${hard_cap}% · resets at ${resets_local}"
 
   # Full pause: at or above hard cap — wait until window resets
   if awk -v u="$utilization" -v c="$hard_cap" 'BEGIN{exit !(u >= c)}'; then

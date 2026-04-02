@@ -36,17 +36,13 @@ fi
 
 validate_project "$PROJECT_DIR"
 
-# --- Deploy factory configs (before lock — no cleanup needed on failure) ---
-
-deploy_factory_configs "$PROJECT_DIR"
-
 # --- Acquire lock ---
 
 if [[ "$SKIP_LOCK" -eq 0 ]]; then
   acquire_lock "$PROJECT_DIR"
 fi
 
-# --- Swap settings (with trap for guaranteed cleanup) ---
+# --- Cleanup trap (guaranteed lock release, tmp cleanup) ---
 
 cleanup() {
   local exit_code=$?
@@ -59,16 +55,22 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# --- Branch setup (before spec gen — hooks block writes on main/master) ---
+# --- Branch setup (before config deploy — configs belong on staging) ---
 
 if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
+  log_header "Branch Setup"
   setup_staging
   reconcile_staging_with_develop
   safe_checkout_staging
+
+  log_header "Factory Configs"
+  deploy_factory_configs "$PROJECT_DIR"
+  commit_deployed_configs
 fi
 
 # --- Rate limit pre-check (before any Claude invocations) ---
 
+log_header "Pre-flight"
 check_claude_rate_limit
 
 # --- Mode routing ---
@@ -76,6 +78,7 @@ check_claude_rate_limit
 case "$MODE" in
   issue)
     check_usage_and_wait
+    log_header "Spec Generation"
     generate_and_review_spec
     ;;
   discover)
@@ -171,5 +174,6 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   execute_tasks || true
 
   # Completion: summary, issue management, merge wait, cleanup
+  log_header "Completion"
   run_completion "$_SPEC_DIR"
 fi

@@ -139,6 +139,21 @@ PROTECTION
   log_success "Branch protection set on staging"
 }
 
+# --- Config commit ---
+
+# Commit factory-deployed configs to staging (idempotent — no-op if clean).
+commit_deployed_configs() {
+  git -C "$PROJECT_DIR" add -A
+
+  if git -C "$PROJECT_DIR" diff --cached --quiet; then
+    log_info "No new factory configs to commit"
+    return 0
+  fi
+
+  git -C "$PROJECT_DIR" commit -m "chore: deploy factory configs" --quiet
+  log_success "Factory configs committed to staging"
+}
+
 # --- Spec commit ---
 
 # Commit the spec directory to staging before task execution.
