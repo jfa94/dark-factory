@@ -75,6 +75,7 @@ _build_spec_prompt() {
   prompt_file="$(factory_mktemp)"
 
   local skill_file="${FACTORY_DIR}/.claude/skills/prd-to-spec/SKILL.md"
+  [[ -f "$skill_file" ]] || skill_file="$HOME/.claude/skills/prd-to-spec/SKILL.md"
 
   cat <<PROMPT_HEADER > "$prompt_file"
 You are generating vertical-slice specs from a PRD in fully automated (headless) mode.
@@ -249,6 +250,7 @@ _fix_blocking_issues() {
   fix_prompt_file="$(factory_mktemp)"
 
   local skill_file="${FACTORY_DIR}/.claude/skills/prd-to-spec/SKILL.md"
+  [[ -f "$skill_file" ]] || skill_file="$HOME/.claude/skills/prd-to-spec/SKILL.md"
 
   cat <<'FIXHEADER' > "$fix_prompt_file"
 The spec was reviewed and received a score below the passing threshold.

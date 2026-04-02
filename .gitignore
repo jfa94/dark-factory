@@ -26,6 +26,9 @@
 .claude/tool-audit.jsonl
 CLAUDE.local.md
 
+# Temporary files
+.temp/
+
 # Reports (mutation testing, coverage)
 reports/
 
