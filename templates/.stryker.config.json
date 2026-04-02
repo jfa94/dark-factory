@@ -2,6 +2,10 @@
     "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
     "testRunner": "vitest",
     "vitest": {"configFile": "vitest.config.ts"},
+    "plugins": [
+        "@stryker-mutator/vitest-runner",
+        "@stryker-mutator/typescript-checker"
+    ],
     "checkers": ["typescript"],
     "tsconfigFile": "tsconfig.json",
     "coverageAnalysis": "perTest",
@@ -13,7 +17,8 @@
         "!src/**/*.spec.ts",
         "!src/**/*.d.ts",
         "!src/**/types/**",
-        "!src/**/index.ts"
+        "!src/**/index.ts",
+        "!src/data/**"
     ],
     "incremental": true,
     "incrementalFile": "reports/mutation/.stryker-incremental.json",
