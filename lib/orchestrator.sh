@@ -218,10 +218,11 @@ _execute_single_task() {
     1)
       # REQUEST_CHANGES — code-review.sh set TASK_FAILURE_TYPE=code_review; retry
       log_info "Review requested changes for $task_id — retrying with review findings"
+      local review_findings="${TASK_FAILURE_OUTPUT:-}"
 
       if run_task "$task_id"; then
         local followup_rc=0
-        review_task "$task_id" "$task_json" 1 || followup_rc=$?
+        review_task "$task_id" "$task_json" 1 "$review_findings" || followup_rc=$?
 
         if [[ "$followup_rc" -eq 0 ]]; then
           _TASK_STATUS["$task_id"]="success"

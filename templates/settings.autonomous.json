@@ -130,7 +130,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "FP=$(cat | jq -r '.tool_input.file_path // \"\"'); if echo \"$FP\" | grep -qE '(\\.env[^/]*$|/migrations/|/secrets/)'; then echo '{\"decision\":\"block\",\"reason\":\"Protected file: requires human review.\"}'; fi"
+                        "command": "FP=$(cat | jq -r '.tool_input.file_path // \"\"'); if echo \"$FP\" | grep -qE '(\\.env[^/]*$|/secrets/)'; then echo '{\"decision\":\"block\",\"reason\":\"Protected file: requires human review.\"}'; exit 0; fi; if echo \"$FP\" | grep -qE '/migrations/'; then ROOT=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git rev-parse --show-toplevel 2>/dev/null); if [ -n \"$ROOT\" ]; then REL=\"${FP#$ROOT/}\"; if git -C \"$ROOT\" cat-file -e \"main:$REL\" 2>/dev/null; then echo '{\"decision\":\"block\",\"reason\":\"Applied migration (exists on main): cannot edit in autonomous mode.\"}'; fi; fi; fi"
                     }
                 ]
             },

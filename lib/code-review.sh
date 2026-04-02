@@ -19,6 +19,7 @@ _build_review_prompt() {
   local task_json="$1"
   local branch="$2"
   local is_followup="${3:-0}"
+  local prior_findings="${4:-}"
 
   local prompt_file
   prompt_file="$(factory_mktemp)"
@@ -30,20 +31,27 @@ _build_review_prompt() {
   criteria="$(printf '%s' "$task_json" | jq -r '.acceptance_criteria // [] | .[] | "- " + .')"
 
   if [[ "$is_followup" -eq 1 ]]; then
-    # Stricter follow-up review — critical issues only
+    # Verification pass — confirm prior findings were addressed
     cat > "$prompt_file" <<'HEADER'
-# Follow-up Code Review (stricter pass)
+# Follow-up Code Review (verification pass)
 
-This is a follow-up review after the author addressed previous findings.
-Only flag **critical issues** — things that would cause bugs, data loss,
-security vulnerabilities, or fundamentally broken behavior.
+A previous review flagged specific issues. The author has attempted to fix them.
+Your job is to:
+1. Verify each previously-flagged issue is resolved
+2. Flag any NEW critical issues introduced by the fix
 
-Do NOT flag:
-- Formatting, naming conventions, or lint violations
-- Minor style preferences
-- Suggestions that are "nice to have" but not critical
+Do NOT re-review the entire implementation — focus on the flagged issues and their fixes.
+Do NOT flag formatting, naming conventions, or lint violations.
 
 HEADER
+    if [[ -n "$prior_findings" ]]; then
+      cat >> "$prompt_file" <<FINDINGS
+## Previous Review Findings
+
+${prior_findings}
+
+FINDINGS
+    fi
   else
     cat > "$prompt_file" <<'HEADER'
 # Code Review
@@ -298,6 +306,7 @@ review_task() {
   local task_id="$1"
   local task_json="$2"
   local is_followup="${3:-0}"
+  local prior_findings="${4:-}"
 
   # Skip if review is disabled
   if [[ "${ENABLE_CODE_REVIEW}" -eq 0 ]]; then
@@ -313,7 +322,7 @@ review_task() {
 
   # Build review prompt (Claude reads the diff via tools)
   local prompt_file
-  prompt_file="$(_build_review_prompt "$task_json" "$branch" "$is_followup")"
+  prompt_file="$(_build_review_prompt "$task_json" "$branch" "$is_followup" "$prior_findings")"
 
   # Run review in background with spinner
   local review_output_file
@@ -365,6 +374,8 @@ review_task() {
       log_warn "Review requested changes for $task_id"
 
       export TASK_FAILURE_TYPE="code_review"
+      export TASK_FAILURE_OUTPUT
+      TASK_FAILURE_OUTPUT="$(head -c 4000 "$review_output_file" 2>/dev/null || true)"
       rm -f "$review_output_file"
       return 1
       ;;

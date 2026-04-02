@@ -15,8 +15,9 @@ _MAX_TURNS=60
 _CURRENT_TASK_ID=""
 _CURRENT_ATTEMPT=0
 
-# Cross-file out-variable: set by code-review.sh to signal retry context to run_task()
+# Cross-file out-variables: set by code-review.sh to signal retry context to run_task()
 export TASK_FAILURE_TYPE=""
+export TASK_FAILURE_OUTPUT=""
 
 # --- Placeholder: circuit breaker (implemented in spec 07) ---
 
@@ -92,18 +93,18 @@ _create_feature_branch() {
       if ! git -C "$PROJECT_DIR" rebase staging --quiet 2>/dev/null; then
         log_error "Rebase of $branch onto staging failed — aborting rebase"
         git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
-        [[ "$stashed" -eq 1 ]] && git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true
+        if [[ "$stashed" -eq 1 ]]; then git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true; fi
         return 1
       fi
     fi
-    [[ "$stashed" -eq 1 ]] && git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true
+    if [[ "$stashed" -eq 1 ]]; then git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true; fi
     return 0
   fi
 
   # Create from staging
   git -C "$PROJECT_DIR" checkout staging --quiet
   git -C "$PROJECT_DIR" checkout -b "$branch" --quiet
-  [[ "$stashed" -eq 1 ]] && git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true
+  if [[ "$stashed" -eq 1 ]]; then git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true; fi
   log_info "Created branch $branch from staging"
 }
 
@@ -414,7 +415,9 @@ run_task() {
   local task_id="$1"
 
   local prev_failure_type="${TASK_FAILURE_TYPE:-}"
+  local prev_failure_output="${TASK_FAILURE_OUTPUT:-}"
   TASK_FAILURE_TYPE=""
+  TASK_FAILURE_OUTPUT=""
   _CURRENT_TASK_ID="$task_id"
 
   log_info "Starting task: $task_id"
@@ -434,7 +437,6 @@ run_task() {
 
   local attempt=0
   local max_retries="$MAX_TASK_RETRIES"
-  local prev_failure_output=""
   local prev_exit_code=0
 
   while [[ "$attempt" -le "$max_retries" ]]; do
