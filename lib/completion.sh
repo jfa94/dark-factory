@@ -206,14 +206,19 @@ manage_issue() {
   local repo_url
   repo_url="$(git -C "$PROJECT_DIR" remote get-url origin)" || return 0
 
-  # Check if all tasks succeeded
+  # Check if ALL tasks in the execution order succeeded (not just those that ran)
   local all_ok=1
-  for tid in "${!_TASK_STATUS[@]}"; do
-    if [[ "${_TASK_STATUS[$tid]}" != "success" ]]; then
-      all_ok=0
-      break
-    fi
-  done
+  if [[ -z "${TASK_ORDER:-}" ]]; then
+    all_ok=0
+  else
+    while IFS= read -r tid; do
+      [[ -z "$tid" ]] && continue
+      if [[ "${_TASK_STATUS[$tid]:-pending}" != "success" ]]; then
+        all_ok=0
+        break
+      fi
+    done <<< "$TASK_ORDER"
+  fi
 
   if [[ "$all_ok" -eq 1 ]]; then
     _close_issue_success "$ISSUE_NUMBER" "$repo_url"
