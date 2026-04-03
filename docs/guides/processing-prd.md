@@ -149,10 +149,28 @@ After all tasks:
 
 [INFO]    Waiting for all PRs to merge
 [SUCCESS] All PRs merged
-[SUCCESS] Pipeline complete
 ```
 
 The GitHub issue is closed with a comment listing all PR URLs.
+
+## Step 9: Documentation Update
+
+After all PRs merge, the pipeline invokes Claude to update the target project's documentation:
+
+```
+=== Documentation Update ===
+
+[INFO]    Invoking Claude to update docs...
+[SUCCESS] Documentation updated and committed to staging
+[SUCCESS] Pipeline complete
+```
+
+Claude:
+- Updates existing docs in `/docs` to reflect the newly implemented feature
+- Writes ADR(s) to `docs/decisions/` for significant architectural decisions
+- Updates the `<!-- last-documented: <sha> -->` marker in docs/README.md
+
+This step is non-fatal: if it fails, the pipeline logs a warning and continues with cleanup.
 
 ## Troubleshooting
 

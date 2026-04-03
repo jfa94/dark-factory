@@ -1,6 +1,6 @@
 # Components
 
-Dark Factory comprises 16 Bash modules totaling approximately 3,700 lines. Each module focuses on a specific responsibility.
+Dark Factory comprises 17 Bash modules totaling approximately 4,000 lines. Each module focuses on a specific responsibility.
 
 ## Module Reference
 
@@ -125,7 +125,7 @@ Global state:
 
 #### completion.sh
 
-Post-execution: resume detection, summary, issue management, PR merge waiting, cleanup.
+Post-execution: resume detection, summary, issue management, PR merge waiting, docs update, cleanup.
 
 Functions:
 - `check_resume()` - Detect prior runs, prompt user
@@ -136,7 +136,25 @@ Functions:
 - `cleanup_branches()` - Delete merged feature branches
 - `cleanup_spec()` - Remove spec directory and commit
 - `cleanup_logs()` - Remove log directory
-- `run_completion()` - Orchestrate full completion sequence
+- `run_completion()` - Orchestrate full completion sequence (includes docs update)
+
+#### docs-update.sh
+
+Documentation update: invokes Claude to update /docs and write ADR(s) after successful pipeline runs.
+
+Functions:
+- `update_project_docs()` - Update docs and write ADR(s); non-fatal on failure
+
+Internal helpers:
+- `_get_last_documented_commit()` - Read `<!-- last-documented: <sha> -->` from docs/README.md
+- `_build_docs_prompt()` - Construct prompt with PRD, spec, tasks, and git diff context
+
+Behavior:
+- Reads `<!-- last-documented: <sha> -->` marker from docs/README.md to scope the diff
+- Gathers context: PRD body (when ISSUE_NUMBER set), spec/tasks files, git diff
+- Invokes Claude to update existing docs and write ADR(s) to docs/decisions/
+- Commits changes to staging with message "docs: update documentation and write ADR(s)"
+- Non-fatal: logs a warning on failure, pipeline continues
 
 ### Infrastructure
 

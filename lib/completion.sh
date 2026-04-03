@@ -411,6 +411,9 @@ run_completion() {
     return 1
   fi
 
+  # Update documentation (non-fatal)
+  update_project_docs "${spec_dir}"
+
   # Post-merge cleanup
   cleanup_branches
 

@@ -77,6 +77,17 @@ When Claude returns a rate limit error, the pipeline parses the reset time and w
 
 Tasks with dependencies wait for upstream PRs to merge before starting. These timeouts prevent indefinite blocking when checks fail or reviews stall.
 
+## Documentation Update
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DOCS_MAX_TURNS` | `120` | Maximum Claude turns for documentation update |
+| `DOCS_MAX_DIFF_LINES` | `8000` | Maximum lines of git diff to include in docs prompt |
+
+After all PRs merge, the pipeline invokes Claude to update the target project's `/docs` directory and write ADR(s). This step is non-fatal: failures log a warning and the pipeline continues.
+
+`DOCS_MAX_DIFF_LINES` caps the git diff included in the prompt. Larger diffs are truncated with a warning. Increase for very large features, but note this affects Claude's context window usage.
+
 ## Example Configurations
 
 ### Fast Iteration (Prototyping)
