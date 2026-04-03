@@ -120,7 +120,7 @@ Internal helpers:
 - `_execute_single_task()` - Run task through run -> review -> PR pipeline
 
 Global state:
-- `_TASK_STATUS` - Associative array: task_id -> success|failure|skipped
+- `_TASK_STATUS` - Associative array: task_id -> success|failure|skipped (pre-populated by `check_resume` before `execute_tasks` is called)
 - `_TASK_PR_URL` - Associative array: task_id -> PR URL
 
 #### completion.sh

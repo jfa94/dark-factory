@@ -116,11 +116,11 @@ JSON file listing all tasks for a spec. Each task has task_id, title, descriptio
 
 ### claude-progress.json
 
-Project-level file tracking agent sessions and task completion state. Claude updates this during execution.
+Untracked working-tree file providing Claude with cross-session awareness of prior task work. Claude updates this during execution. Gitignored to prevent merge conflicts — must never be committed. This is a Claude-facing context file, not a pipeline control file; the pipeline's resume mechanism uses `status.log` instead.
 
 ### feature-status.json
 
-Project-level file tracking acceptance criteria status per task.
+Untracked working-tree file providing Claude with structured acceptance criteria tracking per task. Gitignored to prevent merge conflicts — must never be committed. This is a Claude-facing context file, not a pipeline control file.
 
 ### init.sh
 

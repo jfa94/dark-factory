@@ -207,6 +207,11 @@ Dark Factory appends these entries to `.gitignore` if not present:
 
 ```
 logs/
+.stryker-tmp/
 .claude/settings.json
 .claude/settings.autonomous.json
+claude-progress.json
+feature-status.json
 ```
+
+The `claude-progress.json` and `feature-status.json` entries ensure these Claude-facing context files remain untracked working-tree artifacts. They persist on disk across branch switches (git ignores them) and must never be committed to avoid merge conflicts.

@@ -2,6 +2,12 @@
 
 Continue from where a prior run stopped.
 
+## Resume Mechanism
+
+The authoritative source for resume state is `status.log`, written deterministically by `write_status` in `lib/utils.sh`. Each line records `task_id=ok|failed|skipped`. The `check_resume` function in `completion.sh` reads this file to populate `_TASK_STATUS` before task execution begins.
+
+Note: `claude-progress.json` is a Claude-facing context file that helps Claude understand prior work — it is **not** used for pipeline resume decisions.
+
 ## Detection
 
 When a prior run exists for the same spec, the pipeline prompts:

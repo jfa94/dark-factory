@@ -91,6 +91,8 @@ _ensure_gitignore_entries() {
     ".claude/settings.json"
     ".claude/settings.autonomous.json"
     ".stryker-tmp/"
+    "claude-progress.json"
+    "feature-status.json"
   )
   [[ -f "$gitignore" ]] || return 0
   for entry in "${entries[@]}"; do
