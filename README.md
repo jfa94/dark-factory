@@ -235,3 +235,13 @@ Prior run detected. Resume [r] or Fresh [f]?
 ```
 
 Resuming skips completed tasks and restores the PR URL mapping so dependency chains continue correctly.
+
+## Documentation
+
+Full documentation is available in [`/docs`](./docs/README.md):
+
+- [Getting Started](./docs/getting-started.md) - Installation and first run
+- [Architecture](./docs/architecture/overview.md) - System design and execution flow
+- [CLI Reference](./docs/reference/cli.md) - Command-line options
+- [Environment Variables](./docs/reference/environment.md) - Configuration tuning
+- [Glossary](./docs/glossary.md) - Domain and technical terms
