@@ -333,6 +333,7 @@ check_usage_and_wait() {
       local chunk=$(( remaining > USAGE_POLL_INTERVAL ? USAGE_POLL_INTERVAL : remaining ))
       sleep "$chunk"
       remaining=$(( remaining - chunk ))
+      SECONDS=$(( SECONDS - chunk ))  # don't count pause time against runtime limit
 
       if ! check_time_circuit_breaker; then
         log_error "Runtime circuit breaker tripped during usage pause"
@@ -377,6 +378,7 @@ check_usage_and_wait() {
       local chunk=$(( remaining > USAGE_POLL_INTERVAL ? USAGE_POLL_INTERVAL : remaining ))
       sleep "$chunk"
       remaining=$(( remaining - chunk ))
+      SECONDS=$(( SECONDS - chunk ))  # don't count pause time against runtime limit
 
       if ! check_time_circuit_breaker; then
         log_error "Runtime circuit breaker tripped during usage pause"
