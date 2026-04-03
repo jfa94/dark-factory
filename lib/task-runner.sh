@@ -336,7 +336,9 @@ _invoke_claude() {
   args+=(-p "$prompt_content")
 
   # Run Claude in background with spinner (stderr merged for rate limit detection)
-  (cd "$PROJECT_DIR" && "${args[@]}") > "$output_file" 2>&1 &
+  # Redirect stdin from /dev/null so Claude does not consume the caller's stdin
+  # (e.g. the here-string feeding the task-order while loop in orchestrator.sh).
+  (cd "$PROJECT_DIR" && "${args[@]}") < /dev/null > "$output_file" 2>&1 &
   register_bg_pid $!
   spin $!
   local rc=$?

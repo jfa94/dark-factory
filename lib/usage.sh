@@ -263,7 +263,19 @@ check_usage_and_wait() {
     return 0
   fi
 
-  # Compute window position
+  # Also check seven-day utilization; use whichever is higher for cap enforcement
+  local seven_day_utilization seven_day_resets_at
+  seven_day_utilization="$(printf '%s' "$usage_json" | jq -r '.seven_day.utilization // empty' 2>/dev/null)" || seven_day_utilization=""
+  seven_day_resets_at="$(printf '%s' "$usage_json" | jq -r '.seven_day.resets_at // empty' 2>/dev/null)" || seven_day_resets_at=""
+
+  local effective_utilization="$utilization"
+  local effective_resets_at="$resets_at"
+  if [[ -n "$seven_day_utilization" ]] && awk -v w="$seven_day_utilization" -v f="$utilization" 'BEGIN{exit !(w > f)}'; then
+    effective_utilization="$seven_day_utilization"
+    effective_resets_at="${seven_day_resets_at:-$resets_at}"
+  fi
+
+  # Compute window position (always based on five-hour window for hourly pacing)
   local now_epoch reset_epoch
   now_epoch="$(date "+%s")"
   reset_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${resets_at%%.*}" "+%s" 2>/dev/null)" \
@@ -282,17 +294,27 @@ check_usage_and_wait() {
 
   local hard_cap="$USAGE_HARD_CAP_PCT"
 
+  # Compute effective reset epoch for cap pause
+  local effective_reset_epoch="$reset_epoch"
+  if [[ "$effective_resets_at" != "$resets_at" && -n "$effective_resets_at" ]]; then
+    effective_reset_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${effective_resets_at%%.*}" "+%s" 2>/dev/null)" \
+      || effective_reset_epoch="$(TZ=UTC date -d "${effective_resets_at%%.*}" "+%s" 2>/dev/null)" \
+      || effective_reset_epoch="$reset_epoch"
+  fi
+
   # Format resets_at as local HH:MM for readability
   local resets_local
-  resets_local="$(date -j -f "%Y-%m-%dT%H:%M:%S" "${resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
-    || resets_local="$(date -d "${resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
-    || resets_local="${resets_at%%T*} ${resets_at##*T}"
+  resets_local="$(date -j -f "%Y-%m-%dT%H:%M:%S" "${effective_resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
+    || resets_local="$(date -d "${effective_resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
+    || resets_local="${effective_resets_at%%T*} ${effective_resets_at##*T}"
 
-  log_usage "${utilization}% used · hour ${window_hour}/5 · threshold ${hourly_threshold}% · hard cap ${hard_cap}% · resets at ${resets_local}"
+  local seven_day_label=""
+  [[ -n "$seven_day_utilization" ]] && seven_day_label=" · 7d: ${seven_day_utilization}%"
+  log_usage "5h: ${utilization}%${seven_day_label} · effective: ${effective_utilization}% · hour ${window_hour}/5 · threshold ${hourly_threshold}% · hard cap ${hard_cap}% · resets at ${resets_local}"
 
-  # Full pause: at or above hard cap — wait until window resets
-  if awk -v u="$utilization" -v c="$hard_cap" 'BEGIN{exit !(u >= c)}'; then
-    local wait_secs=$(( reset_epoch - now_epoch + 60 ))
+  # Full pause: at or above hard cap — wait until effective window resets
+  if awk -v u="$effective_utilization" -v c="$hard_cap" 'BEGIN{exit !(u >= c)}'; then
+    local wait_secs=$(( effective_reset_epoch - now_epoch + 60 ))
 
     if [[ "$wait_secs" -le 0 ]]; then
       log_info "Usage reset already passed, continuing"
@@ -304,7 +326,7 @@ check_usage_and_wait() {
       || wake_time="$(date -d "@$(( now_epoch + wait_secs ))" '+%H:%M:%S' 2>/dev/null)" \
       || wake_time="unknown"
 
-    log_warn "=== USAGE PAUSE (FULL): ${utilization}% >= ${hard_cap}% hard cap — sleeping $(( wait_secs / 60 ))m until $wake_time ==="
+    log_warn "=== USAGE PAUSE (FULL): ${effective_utilization}% >= ${hard_cap}% hard cap — sleeping $(( wait_secs / 60 ))m until $wake_time ==="
 
     local remaining="$wait_secs"
     while [[ "$remaining" -gt 0 ]]; do
@@ -326,7 +348,8 @@ check_usage_and_wait() {
     return 0
   fi
 
-  # Hourly pause: above hourly threshold — wait until next window hour boundary
+  # Hourly pause: above hourly threshold — based on five-hour utilization only
+  # (seven-day utilization above threshold would already have triggered the full pause above)
   if awk -v u="$utilization" -v t="$hourly_threshold" 'BEGIN{exit !(u >= t)}'; then
     local next_window_hour_epoch=$(( window_start + window_hour * 3600 ))
     local wait_secs=$(( next_window_hour_epoch - now_epoch + 10 ))

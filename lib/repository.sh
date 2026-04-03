@@ -50,6 +50,10 @@ reconcile_staging_with_develop() {
 
   git -C "$PROJECT_DIR" checkout staging --quiet
 
+  # Sync with remote staging first (picks up merged PRs)
+  git -C "$PROJECT_DIR" merge --ff-only origin/staging --quiet 2>/dev/null \
+    || log_warn "Could not fast-forward local staging from origin/staging — may have diverged"
+
   # Check if staging already contains all of develop's commits
   if git -C "$PROJECT_DIR" merge-base --is-ancestor develop staging; then
     if [[ "$(git -C "$PROJECT_DIR" rev-parse develop)" == "$(git -C "$PROJECT_DIR" rev-parse staging)" ]]; then
@@ -119,13 +123,14 @@ setup_branch_protection() {
 
   log_info "Setting branch protection on staging ($nwo)"
 
-  # Require quality-gate, mutation, and security checks to pass
+  # Require Quality Gate workflow checks to pass.
+  # Check names must match the `name:` field of each job in quality-gate.yml.
   gh api -X PUT "repos/${nwo}/branches/staging/protection" \
     --input - <<'PROTECTION' || {
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["quality-gate", "mutation-testing", "security-check"]
+    "contexts": ["Quality", "Mutation Testing", "Security Scan"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": null,

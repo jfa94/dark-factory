@@ -262,16 +262,23 @@ _create_pr() {
   printf '%s' "$pr_url"
 }
 
-# Enable auto-merge on a PR.
+# Enable auto-merge on a PR. Retries once after 10s (checks may not have started yet).
 _enable_auto_merge() {
   local pr_url="$1"
+  local err
+  local attempt
 
-  gh pr merge --auto --squash "$pr_url" 2>/dev/null || {
-    log_warn "Failed to enable auto-merge on $pr_url"
-    return 0
-  }
+  for attempt in 1 2; do
+    if err="$(gh pr merge --auto --squash "$pr_url" 2>&1)"; then
+      log_success "Auto-merge enabled on $pr_url"
+      return 0
+    fi
+    log_warn "Auto-merge attempt $attempt failed for $pr_url: $err"
+    [[ "$attempt" -eq 1 ]] && sleep 10
+  done
 
-  log_success "Auto-merge enabled on $pr_url"
+  log_warn "Failed to enable auto-merge on $pr_url (will need manual merge)"
+  return 0
 }
 
 # Post review findings as a PR comment.
