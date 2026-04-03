@@ -267,19 +267,6 @@ execute_tasks() {
 
   log_header "Task Execution  (max: $MAX_TASKS tasks · ${MAX_RUNTIME_MINUTES}m runtime)"
 
-  # Pre-populate _TASK_STATUS from claude-progress.json (idempotent re-runs)
-  local _progress_file="${PROJECT_DIR}/claude-progress.json"
-  if [[ -f "$_progress_file" ]]; then
-    local _prev_completed
-    _prev_completed="$(jq -r '.tasks_completed // [] | .[]' "$_progress_file" 2>/dev/null)" || _prev_completed=""
-    if [[ -n "$_prev_completed" ]]; then
-      while IFS= read -r _tid; do
-        [[ -z "$_tid" ]] && continue
-        _TASK_STATUS["$_tid"]="success"
-        log_info "Resuming: $_tid already completed"
-      done <<< "$_prev_completed"
-    fi
-  fi
 
   local _task_num=0
   while IFS= read -r task_id; do

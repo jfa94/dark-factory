@@ -178,13 +178,13 @@ PROMPT
 
 - Complete exactly ONE task in this session — this task only
 - Use conventional commits: `feat(scope): description`, `fix(scope): description`, etc.
-- Update `claude-progress.json` before stopping:
+- Update `claude-progress.json` before stopping (local context only — do NOT git-add or commit this file):
   - Set `current_task` to this task_id while working
   - Add session entry to `sessions` array
   - On completion: add task_id to `tasks_completed`, set `current_task` to null
   - On failure: add task_id to `tasks_failed`, set `current_task` to null
   - Update `last_updated` timestamp
-- Update `feature-status.json` with acceptance criteria status
+- Update `feature-status.json` with acceptance criteria status (local context only — do NOT git-add or commit this file)
 - Write tests for all new functionality (both happy path and edge cases)
 - Do not modify existing tests to make them pass — fix the implementation instead
 PROMPT
