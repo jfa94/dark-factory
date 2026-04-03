@@ -48,6 +48,12 @@ reconcile_staging_with_develop() {
   local original_branch
   original_branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)"
 
+  # Abort if working tree is dirty (same guard as safe_checkout_staging)
+  if ! git -C "$PROJECT_DIR" diff --quiet || ! git -C "$PROJECT_DIR" diff --cached --quiet; then
+    log_error "Working tree is dirty — commit or stash changes before running the pipeline"
+    return 1
+  fi
+
   git -C "$PROJECT_DIR" checkout staging --quiet
 
   # Sync with remote staging first (picks up merged PRs)
