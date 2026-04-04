@@ -256,6 +256,12 @@ _execute_single_task() {
   esac
 }
 
+# Restore project to staging after any task execution.
+# Called from execute_tasks after _execute_single_task completes.
+_restore_staging() {
+  git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+}
+
 # --- Public interface ---
 
 # Execute all tasks in topological order with circuit breakers
@@ -327,6 +333,8 @@ execute_tasks() {
       _CONSECUTIVE_FAILURES=$(( _CONSECUTIVE_FAILURES + 1 ))
       log_error "Task $task_id failed (consecutive failures: $_CONSECUTIVE_FAILURES)"
     fi
+
+    _restore_staging
 
     # Persist status to disk immediately for resume support
     case "${_TASK_STATUS[$task_id]:-failure}" in

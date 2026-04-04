@@ -55,31 +55,42 @@ check_resume() {
 
   log_info "  $completed_count task(s) completed in prior run"
 
-  printf '\n' >&2
-  log_info "Choose:"
-  log_info "  [r] Resume — skip completed tasks, continue from where it left off"
-  log_info "  [f] Fresh  — start over from scratch"
-  printf '\n' >&2
+  # Non-interactive mode: FACTORY_RESUME=r (resume) or FACTORY_RESUME=f (fresh)
+  local choice="${FACTORY_RESUME:-}"
 
-  local choice
-  while true; do
-    read -rp "  Enter choice (r/f): " choice
-    case "$choice" in
-      r|R)
-        log_info "Resuming from prior run"
-        printf '%s\n' "$latest_dir"
-        printf '%s\n' "$completed"
-        return 0
-        ;;
-      f|F)
-        log_info "Starting fresh"
-        return 0
-        ;;
-      *)
-        log_warn "Invalid choice — enter 'r' or 'f'"
-        ;;
-    esac
-  done
+  if [[ -z "$choice" ]]; then
+    # Interactive prompt
+    printf '\n' >&2
+    log_info "Choose:"
+    log_info "  [r] Resume — skip completed tasks, continue from where it left off"
+    log_info "  [f] Fresh  — start over from scratch"
+    printf '\n' >&2
+
+    while true; do
+      read -rp "  Enter choice (r/f): " choice
+      case "$choice" in
+        r|R|f|F) break ;;
+        *) log_warn "Invalid choice — enter 'r' or 'f'" ;;
+      esac
+    done
+  fi
+
+  case "$choice" in
+    r|R)
+      log_info "Resuming from prior run"
+      printf '%s\n' "$latest_dir"
+      printf '%s\n' "$completed"
+      return 0
+      ;;
+    f|F)
+      log_info "Starting fresh"
+      return 0
+      ;;
+    *)
+      log_warn "Invalid FACTORY_RESUME value '$choice' — starting fresh"
+      return 0
+      ;;
+  esac
 }
 
 # Detect commits ahead of staging on feat/<task-id> branches for resumed tasks.

@@ -14,7 +14,7 @@ Key responsibilities:
 - Resolve FACTORY_DIR (handles symlinks)
 - Source all lib/*.sh modules
 - Acquire project lock
-- Set up EXIT trap for cleanup
+- Set up EXIT trap for cleanup (includes staging branch restoration as a safety net)
 - Route to issue, discover, spec, or interactive mode
 - Initialize log directory
 - Coordinate resume detection
@@ -118,6 +118,7 @@ Internal helpers:
 - `_check_dependencies()` - Verify all deps succeeded
 - `_wait_for_dependency_prs()` - Poll until upstream PRs merge; updates stale branches via `gh pr update-branch`
 - `_execute_single_task()` - Run task through run -> review -> PR pipeline
+- `_restore_staging()` - Check out staging after each task completes (prevents leaving repo on a feature branch)
 
 Global state:
 - `_TASK_STATUS` - Associative array: task_id -> success|failure|skipped (pre-populated by `check_resume` before `execute_tasks` is called)
@@ -128,7 +129,7 @@ Global state:
 Post-execution: resume detection, summary, issue management, PR merge waiting, docs update, cleanup.
 
 Functions:
-- `check_resume()` - Detect prior runs, prompt user
+- `check_resume()` - Detect prior runs, prompt user (supports non-interactive mode via `FACTORY_RESUME` env var)
 - `get_resume_context()` - Get commits ahead of staging for a task branch
 - `print_summary()` - Display execution summary
 - `manage_issue()` - Close or comment on GitHub issue

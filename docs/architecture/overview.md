@@ -189,10 +189,16 @@ Several operations fail gracefully:
 - Config deployment (warns but continues if files exist)
 - Branch protection setup (requires admin access, warns if missing)
 
+### Staging Restoration
+
+After each task completes (success or failure), the orchestrator calls `_restore_staging()` to check out the staging branch. This prevents the repository from being left on a feature branch between tasks, which would cause the next task's branch creation to start from the wrong base.
+
+As a safety net, the `cleanup()` EXIT trap in `run-factory.sh` also checks out staging on all exit paths (normal exit, errors, signals). This catches cases where the orchestrator did not run or was interrupted mid-task.
+
 ### Guaranteed Cleanup
 
-An EXIT trap ensures:
+The EXIT trap in `run-factory.sh` ensures:
+- Staging branch restoration (prevents leaving repo on a feature branch)
 - Lock release
 - Background process termination
 - Temp directory removal
-- Settings restoration (if applicable)

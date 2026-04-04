@@ -66,6 +66,14 @@ Hourly pacing within the 5-hour window:
 
 When Claude returns a rate limit error, the pipeline parses the reset time and waits. If parsing fails, it polls with a brief probe until the limit clears.
 
+## Resume Control
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FACTORY_RESUME` | *(unset)* | Non-interactive resume choice: `r` to resume, `f` for fresh start. When unset, falls back to interactive prompt |
+
+Set this variable to automate resume decisions in CI or scripted environments. See [Resuming a Failed Run](../guides/resuming.md) for details.
+
 ## PR Merge Waiting
 
 | Variable | Default | Description |

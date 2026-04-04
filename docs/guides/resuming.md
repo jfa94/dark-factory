@@ -23,6 +23,20 @@ Choose:
   Enter choice (r/f):
 ```
 
+### Non-Interactive Mode
+
+Set the `FACTORY_RESUME` environment variable to skip the interactive prompt:
+
+- `FACTORY_RESUME=r` -- resume from prior run
+- `FACTORY_RESUME=f` -- start fresh
+
+When `FACTORY_RESUME` is unset, the pipeline falls back to the interactive prompt. Invalid values are treated as "fresh" with a warning.
+
+```bash
+# Resume without prompting (useful in CI or scripted runs)
+FACTORY_RESUME=r ./run-factory.sh ~/my-project user-auth
+```
+
 ## Resume Option
 
 Choosing `r` (resume):

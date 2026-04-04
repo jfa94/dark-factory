@@ -1,4 +1,4 @@
-<!-- last-documented: e9080c54134adb59b3584679b2e7bbeba37fd360 -->
+<!-- last-documented: cc68f322d78385bd473593eb90546023bb2fc3fc -->
 
 # Dark Factory Documentation
 

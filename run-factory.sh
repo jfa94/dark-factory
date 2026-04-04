@@ -46,6 +46,10 @@ fi
 
 cleanup() {
   local exit_code=$?
+  # Restore project to staging so the repo isn't left on a feature branch
+  if [[ -n "${PROJECT_DIR:-}" ]]; then
+    git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+  fi
   _kill_bg_pids || true
   release_lock || true
   if [[ -n "${FACTORY_TMP_DIR:-}" && -d "$FACTORY_TMP_DIR" ]]; then
