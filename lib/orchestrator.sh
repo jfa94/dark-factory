@@ -155,6 +155,11 @@ _wait_for_dependency_prs() {
         fi
       fi
 
+      if [[ "$merge_state_status" == "BEHIND" ]]; then
+        gh pr update-branch "$pr_url" 2>/dev/null || true
+        log_info "Updated branch for $dep_id (was BEHIND)"
+      fi
+
       log_info "Still waiting for $dep_id PR to merge (${waited}s / ${PR_MERGE_TIMEOUT}s)"
     done
 

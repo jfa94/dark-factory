@@ -116,7 +116,7 @@ Functions:
 Internal helpers:
 - `_check_circuit_breakers()` - Task count, runtime, consecutive failures
 - `_check_dependencies()` - Verify all deps succeeded
-- `_wait_for_dependency_prs()` - Poll until upstream PRs merge
+- `_wait_for_dependency_prs()` - Poll until upstream PRs merge; updates stale branches via `gh pr update-branch`
 - `_execute_single_task()` - Run task through run -> review -> PR pipeline
 
 Global state:
@@ -189,7 +189,7 @@ Functions:
 - `setup_staging()` - Create develop and staging branches if missing
 - `reconcile_staging_with_develop()` - Fast-forward or merge staging
 - `safe_checkout_staging()` - Switch to staging (requires clean tree)
-- `setup_branch_protection()` - Set GitHub branch protection via gh API
+- `setup_branch_protection()` - Set GitHub branch protection via gh API (non-strict mode allows parallel merges)
 - `commit_deployed_configs()` - Commit factory configs to staging
 - `commit_spec_to_staging()` - Commit spec directory before task execution
 

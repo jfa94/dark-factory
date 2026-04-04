@@ -92,7 +92,7 @@ main
               +-- feat/task-03-api-routes
 ```
 
-- **staging**: Protected branch requiring Quality Gate checks to pass
+- **staging**: Protected branch requiring Quality Gate checks to pass; PRs do not need to be up-to-date with base before merging (allows parallel merges)
 - **Feature branches**: Created from staging for each task, PRs merge back to staging
 - **develop/main**: Manually promoted after features stabilize on staging
 
@@ -175,7 +175,8 @@ This front-loads failures to the cheap spec phase rather than expensive code gen
 Tasks declare dependencies. The orchestrator:
 1. Topologically sorts the task graph
 2. Waits for upstream PRs to merge before starting downstream tasks
-3. Pulls latest staging after merges to avoid conflicts
+3. Proactively updates stale dependency branches (runs `gh pr update-branch` when a PR's merge state is BEHIND)
+4. Pulls latest staging after merges to avoid conflicts
 
 ### Fresh-Context Review
 

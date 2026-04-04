@@ -33,7 +33,7 @@ check_resume() {
 
   while IFS= read -r dir; do
     [[ -z "$dir" ]] && continue
-    if [[ -f "${dir}status.log" ]]; then
+    if [[ -f "${dir}/status.log" ]]; then
       latest_dir="$dir"
       break
     fi

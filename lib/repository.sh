@@ -135,7 +135,7 @@ setup_branch_protection() {
     --input - <<'PROTECTION' || {
 {
   "required_status_checks": {
-    "strict": true,
+    "strict": false,
     "contexts": ["Quality", "Mutation Testing", "Security Scan"]
   },
   "enforce_admins": false,
