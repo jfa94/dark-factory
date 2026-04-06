@@ -150,6 +150,20 @@ write_pr_map() {
   printf '%s=%s\n' "$task_id" "$pr_number" >> "${FACTORY_LOG_DIR}/pr-map.log"
 }
 
+# Write a line to the CI fix log.
+# Usage: write_ci_fix <task_id> <dep_id> <fixed|failed>
+write_ci_fix() {
+  local task_id="$1"
+  local dep_id="$2"
+  local result="$3"
+
+  if [[ -z "${FACTORY_LOG_DIR:-}" ]]; then
+    return 0
+  fi
+
+  printf '%s=%s=%s\n' "$task_id" "$dep_id" "$result" >> "${FACTORY_LOG_DIR}/ci-fixes.log"
+}
+
 # Read completed tasks from status log (for resume).
 # Outputs task IDs that have status=ok, one per line.
 read_completed_tasks() {

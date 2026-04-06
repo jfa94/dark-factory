@@ -208,6 +208,46 @@ RESUME
   printf '%s' "$prompt_file"
 }
 
+# Build CI fix prompt for a dependency task whose PR has failing checks.
+# Returns temp file path via stdout.
+# Usage: _build_ci_fix_prompt <task_id> <ci_context>
+_build_ci_fix_prompt() {
+  local task_id="$1"
+  local ci_context="$2"
+
+  local prompt_file
+  prompt_file="$(factory_mktemp)"
+
+  cat > "$prompt_file" <<PROMPT
+# CI Fix: ${task_id}
+
+A pull request for task ${task_id} has failing CI checks. Your job is to fix the
+failures so CI passes and the PR can merge.
+
+## Orientation
+
+1. Run \`git log --oneline -10\` to understand recent changes on this branch
+2. Read the CI failure details below carefully
+3. Identify the root cause
+4. Make minimal, targeted fixes — do not refactor or add features
+5. Run \`pnpm quality\` to verify your fix locally before finishing
+
+## CI Failure Details
+
+$(printf '%b' "$ci_context")
+
+## Rules
+
+- Fix ONLY the CI failures — do not change unrelated code
+- Do not modify or delete tests to make them pass — fix the implementation
+- Do not disable linting rules or quality checks
+- Run \`pnpm quality\` before you finish to verify the fix works
+- If the failure is a flaky test, still attempt a structural fix (increase timeout, fix race condition)
+PROMPT
+
+  printf '%s' "$prompt_file"
+}
+
 # Build retry prompt with failure context.
 # Returns temp file path via stdout.
 _build_retry_prompt() {

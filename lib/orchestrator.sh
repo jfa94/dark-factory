@@ -12,6 +12,8 @@ MAX_RUNTIME_MINUTES="${MAX_RUNTIME_MINUTES:-360}"
 MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
 PR_MERGE_TIMEOUT="${PR_MERGE_TIMEOUT:-2700}"       # 45 minutes in seconds
 PR_MERGE_POLL_INTERVAL="${PR_MERGE_POLL_INTERVAL:-30}"
+MAX_CI_FIX_ATTEMPTS="${MAX_CI_FIX_ATTEMPTS:-2}"
+CI_FIX_POLL_TIMEOUT="${CI_FIX_POLL_TIMEOUT:-900}"  # 15 minutes per fix attempt
 
 # --- Circuit breaker state ---
 
@@ -51,6 +53,160 @@ _check_circuit_breakers() {
   fi
 
   return 0
+}
+
+# --- CI self-healing ---
+
+# Extract structured CI failure context from a PR for use in fix prompts.
+# Outputs: formatted string with failing check names and truncated log output.
+# Usage: _extract_ci_failure_context <pr_url> <dep_branch>
+_extract_ci_failure_context() {
+  local pr_url="$1"
+  local dep_branch="$2"
+
+  local context="Failing checks:\n"
+
+  local failing_checks
+  failing_checks="$(gh pr checks "$pr_url" --json name,bucket,link \
+    --jq '[.[] | select(.bucket == "fail")] | .[] | "- \(.name): \(.link)"' 2>/dev/null)" || true
+
+  if [[ -n "$failing_checks" ]]; then
+    context+="${failing_checks}\n"
+  else
+    context+="(could not retrieve check details)\n"
+  fi
+
+  context+="\n"
+
+  # Get latest run ID for the branch
+  local run_id
+  run_id="$(gh run list --branch "$dep_branch" --limit 1 \
+    --json databaseId --jq '.[0].databaseId' 2>/dev/null)" || true
+
+  if [[ -n "$run_id" ]]; then
+    local failed_logs
+    failed_logs="$(gh run view "$run_id" --log-failed 2>/dev/null | tail -n 200)" || true
+
+    if [[ -n "$failed_logs" ]]; then
+      context+="Failed CI logs (last 200 lines):\n\`\`\`\n${failed_logs}\n\`\`\`\n"
+    fi
+  fi
+
+  printf '%s' "$context"
+}
+
+# Attempt to fix failing CI on a dependency PR.
+# Checks out the dep branch, invokes Claude with failure context, pushes, re-enables auto-merge.
+# Returns 0 if PR subsequently merges, 1 if all attempts exhausted.
+# Usage: _attempt_dep_ci_fix <dep_id> <pr_url> <task_id>
+_attempt_dep_ci_fix() {
+  local dep_id="$1"
+  local pr_url="$2"
+  local task_id="$3"
+
+  local dep_branch="feat/${dep_id}"
+  local attempt=0
+  local pr_state=""
+
+  while [[ "$attempt" -lt "$MAX_CI_FIX_ATTEMPTS" ]]; do
+    attempt=$(( attempt + 1 ))
+    log_info "CI fix attempt $attempt/$MAX_CI_FIX_ATTEMPTS for $dep_id (needed by $task_id)"
+
+    local ci_context
+    ci_context="$(_extract_ci_failure_context "$pr_url" "$dep_branch")"
+
+    # Checkout dependency branch
+    if ! git -C "$PROJECT_DIR" checkout "$dep_branch" --quiet 2>/dev/null; then
+      log_error "Could not checkout $dep_branch for CI fix"
+      git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+      write_ci_fix "$task_id" "$dep_id" "failed"
+      return 1
+    fi
+    git -C "$PROJECT_DIR" pull --quiet origin "$dep_branch" 2>/dev/null || true
+
+    # Build fix prompt and invoke Claude
+    local prompt_file
+    prompt_file="$(_build_ci_fix_prompt "$dep_id" "$ci_context")"
+
+    local claude_output_file
+    claude_output_file="$(factory_mktemp)"
+
+    _MODEL_ARGS=()
+    _MAX_TURNS=40
+
+    local claude_exit=0
+    _invoke_claude "$prompt_file" "$claude_output_file" || claude_exit=$?
+    rm -f "$prompt_file" "$claude_output_file"
+
+    if [[ "$claude_exit" -ne 0 ]]; then
+      log_warn "Claude CI fix session failed for $dep_id (exit $claude_exit)"
+      git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+      continue
+    fi
+
+    # Check if Claude made any changes
+    if git -C "$PROJECT_DIR" diff --quiet HEAD "origin/${dep_branch}" 2>/dev/null; then
+      log_warn "CI fix produced no changes for $dep_id"
+      git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+      continue
+    fi
+
+    # Push fixes
+    if ! git -C "$PROJECT_DIR" push origin "$dep_branch" --quiet 2>/dev/null; then
+      log_error "Failed to push CI fix for $dep_id"
+      git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+      write_ci_fix "$task_id" "$dep_id" "failed"
+      return 1
+    fi
+
+    log_success "Pushed CI fix for $dep_id (attempt $attempt)"
+
+    # Re-enable auto-merge (may have been cancelled by failed checks)
+    gh pr merge --auto --squash "$pr_url" 2>/dev/null || true
+
+    git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+
+    # Give GitHub a moment before polling for new CI
+    sleep 15
+
+    # Poll for new CI result
+    local ci_wait=0
+    local check_summary=""
+
+    while [[ "$ci_wait" -lt "$CI_FIX_POLL_TIMEOUT" ]]; do
+      sleep "$PR_MERGE_POLL_INTERVAL"
+      ci_wait=$(( ci_wait + PR_MERGE_POLL_INTERVAL ))
+
+      pr_state="$(gh pr view "$pr_url" --json state --jq '.state' 2>/dev/null)" || continue
+
+      if [[ "$pr_state" == "MERGED" ]]; then
+        log_success "Dependency PR merged after CI fix: $dep_id"
+        write_ci_fix "$task_id" "$dep_id" "fixed"
+        return 0
+      fi
+
+      check_summary="$(gh pr checks "$pr_url" --json bucket \
+        --jq '[.[] | .bucket] | if any(. == "fail") then "fail" elif any(. == "pending") then "pending" else "pass" end' \
+        2>/dev/null)" || continue
+
+      if [[ "$check_summary" == "fail" ]]; then
+        log_warn "CI still failing after fix attempt $attempt for $dep_id"
+        break
+      fi
+
+      log_info "CI fix: waiting for $dep_id checks (${ci_wait}s / ${CI_FIX_POLL_TIMEOUT}s) [$check_summary]"
+    done
+
+    # If we exited the poll loop with MERGED, we already returned 0 above
+    if [[ "$pr_state" == "MERGED" ]]; then
+      write_ci_fix "$task_id" "$dep_id" "fixed"
+      return 0
+    fi
+  done
+
+  log_error "CI fix exhausted $MAX_CI_FIX_ATTEMPTS attempts for $dep_id"
+  write_ci_fix "$task_id" "$dep_id" "failed"
+  return 1
 }
 
 # --- Dependency helpers ---
@@ -145,14 +301,24 @@ _wait_for_dependency_prs() {
       merge_state_status="$(gh pr view "$pr_url" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null)" || true
 
       if [[ "$merge_state_status" == "BLOCKED" ]]; then
-        # Check if status checks are failing
-        local check_status
-        check_status="$(gh pr checks "$pr_url" 2>/dev/null)" || true
+        # Use structured JSON to distinguish definitively failed vs still pending
+        local check_summary
+        check_summary="$(gh pr checks "$pr_url" --json bucket \
+          --jq '[.[] | .bucket] | if any(. == "fail") then "fail" elif any(. == "pending") then "pending" else "pass" end' \
+          2>/dev/null)" || true
 
-        if printf '%s' "$check_status" | grep -qE '(fail|error)'; then
-          log_error "Dependency PR checks failing — auto-merge cancelled: $dep_id"
+        if [[ "$check_summary" == "fail" ]]; then
+          log_warn "Dependency PR checks failing for $dep_id — attempting CI fix"
+
+          if _attempt_dep_ci_fix "$dep_id" "$pr_url" "$task_id"; then
+            # Fix succeeded and PR merged — move on to next dependency
+            break
+          fi
+
+          log_error "CI fix failed for $dep_id — cannot proceed"
           return 1
         fi
+        # "pending" = checks still running, keep waiting
       fi
 
       if [[ "$merge_state_status" == "BEHIND" ]]; then
