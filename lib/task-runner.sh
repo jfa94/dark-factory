@@ -91,10 +91,11 @@ _create_feature_branch() {
     if ! git -C "$PROJECT_DIR" merge-base --is-ancestor staging "$branch" 2>/dev/null; then
       log_info "Rebasing $branch onto staging"
       if ! git -C "$PROJECT_DIR" rebase staging --quiet 2>/dev/null; then
-        log_error "Rebase of $branch onto staging failed — aborting rebase"
+        log_warn "Rebase of $branch onto staging failed — resetting branch to staging for fresh attempt"
         git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
-        if [[ "$stashed" -eq 1 ]]; then git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true; fi
-        return 1
+        git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+        git -C "$PROJECT_DIR" branch -D "$branch" 2>/dev/null || true
+        git -C "$PROJECT_DIR" checkout -b "$branch" --quiet
       fi
     fi
     if [[ "$stashed" -eq 1 ]]; then git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true; fi

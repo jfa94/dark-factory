@@ -300,6 +300,41 @@ _wait_for_dependency_prs() {
       local merge_state_status
       merge_state_status="$(gh pr view "$pr_url" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null)" || true
 
+      if [[ "$merge_state_status" == "CONFLICTING" || "$merge_state_status" == "DIRTY" ]]; then
+        log_warn "Dependency PR has merge conflicts: $dep_id — attempting rebase"
+        local dep_branch="feat/${dep_id}"
+        local rebase_ok=0
+
+        git -C "$PROJECT_DIR" fetch origin "$dep_branch" staging --quiet 2>/dev/null || true
+
+        if git -C "$PROJECT_DIR" checkout "$dep_branch" --quiet 2>/dev/null; then
+          git -C "$PROJECT_DIR" pull --quiet origin "$dep_branch" 2>/dev/null || true
+
+          if git -C "$PROJECT_DIR" rebase origin/staging --quiet 2>/dev/null; then
+            if git -C "$PROJECT_DIR" push --force-with-lease origin "$dep_branch" --quiet 2>/dev/null; then
+              log_success "Rebased and pushed $dep_branch — re-enabling auto-merge"
+              gh pr merge --auto --squash "$pr_url" 2>/dev/null || true
+              rebase_ok=1
+            else
+              log_error "Failed to push rebased $dep_branch"
+              git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
+            fi
+          else
+            log_error "Rebase of $dep_branch onto staging failed (unresolvable conflicts)"
+            git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
+          fi
+
+          git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
+        else
+          log_error "Could not checkout $dep_branch for rebase"
+        fi
+
+        if [[ "$rebase_ok" -eq 0 ]]; then
+          return 1
+        fi
+        # Rebase succeeded — fall through to continue polling for merge
+      fi
+
       if [[ "$merge_state_status" == "BLOCKED" ]]; then
         # Use structured JSON to distinguish definitively failed vs still pending
         local check_summary
@@ -311,7 +346,8 @@ _wait_for_dependency_prs() {
           log_warn "Dependency PR checks failing for $dep_id — attempting CI fix"
 
           if _attempt_dep_ci_fix "$dep_id" "$pr_url" "$task_id"; then
-            # Fix succeeded and PR merged — move on to next dependency
+            # Fix succeeded and PR merged — update local state and move on
+            pr_state="MERGED"
             break
           fi
 
