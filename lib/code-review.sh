@@ -94,11 +94,12 @@ specific files in more detail as needed. Exclude lockfiles and generated files f
 
 ## Your Verdict
 
-After reviewing, output exactly one of these verdicts on its own line:
+After reviewing, output exactly one of these verdicts on its own line (the FACTORY_VERDICT prefix
+is required so the pipeline can parse your decision unambiguously):
 
-VERDICT: APPROVE
-VERDICT: REQUEST_CHANGES
-VERDICT: NEEDS_DISCUSSION
+FACTORY_VERDICT: APPROVE
+FACTORY_VERDICT: REQUEST_CHANGES
+FACTORY_VERDICT: NEEDS_DISCUSSION
 
 If APPROVE: briefly state why the code is acceptable.
 If REQUEST_CHANGES: list specific issues that must be fixed (numbered).
@@ -115,7 +116,7 @@ _parse_verdict() {
   local review_output_file="$1"
 
   local verdict
-  verdict="$(grep -oE 'VERDICT:[[:space:]]*(APPROVE|REQUEST_CHANGES|NEEDS_DISCUSSION)' "$review_output_file" | tail -1 | sed 's/VERDICT:[[:space:]]*//' || true)"
+  verdict="$(grep -oE 'FACTORY_VERDICT:[[:space:]]*(APPROVE|REQUEST_CHANGES|NEEDS_DISCUSSION)' "$review_output_file" | tail -1 | sed 's/FACTORY_VERDICT:[[:space:]]*//' || true)"
 
   if [[ -z "$verdict" ]]; then
     log_warn "No clean verdict found in review output — defaulting to NEEDS_DISCUSSION"
@@ -244,19 +245,33 @@ _create_pr() {
     --body-file "$body_file" \
     -R "$repo_url" 2>/dev/null)" || {
 
-    log_warn "PR creation failed — retrying in 5 seconds"
+    log_warn "PR creation failed — checking for existing PR before retry"
     sleep 5
 
-    # Second attempt
-    pr_url="$(gh pr create \
-      --base staging \
+    # Check if a PR already exists for this branch (handles partial-success on first attempt)
+    local existing_pr
+    existing_pr="$(gh pr list \
       --head "$branch" \
-      --title "$pr_title" \
-      --body-file "$body_file" \
-      -R "$repo_url")" || {
-      log_error "PR creation failed after retry"
-      return 1
-    }
+      --base staging \
+      -R "$repo_url" \
+      --json url \
+      --jq '.[0].url' 2>/dev/null || true)"
+
+    if [[ -n "$existing_pr" ]]; then
+      log_info "PR already exists for $branch: $existing_pr"
+      pr_url="$existing_pr"
+    else
+      # Second attempt — PR genuinely doesn't exist yet
+      pr_url="$(gh pr create \
+        --base staging \
+        --head "$branch" \
+        --title "$pr_title" \
+        --body-file "$body_file" \
+        -R "$repo_url")" || {
+        log_error "PR creation failed after retry"
+        return 1
+      }
+    fi
   }
 
   printf '%s' "$pr_url"

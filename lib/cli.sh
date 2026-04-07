@@ -40,7 +40,7 @@ Environment variables:
   ENABLE_CODE_REVIEW         Enable code review phase (default: 1)
   REVIEW_TURNS               Claude turns for code review (default: 30)
   MAX_TASKS                  Maximum parallel tasks (default: 20)
-  MAX_RUNTIME_MINUTES        Pipeline timeout in minutes (default: 120)
+  MAX_RUNTIME_MINUTES        Pipeline timeout in minutes (default: 360)
   MAX_CONSECUTIVE_FAILURES   Circuit breaker threshold (default: 3)
 EOF
 }

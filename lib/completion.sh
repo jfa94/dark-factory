@@ -157,14 +157,20 @@ _close_issue_success() {
   local issue_number="$1"
   local repo_url="$2"
 
-  local comment="## Pipeline Complete\n\nAll tasks succeeded. PRs:\n\n"
+  local comment
+  comment="## Pipeline Complete
+
+All tasks succeeded. PRs:
+
+"
   for tid in "${!_TASK_PR_URL[@]}"; do
-    comment+="- **${tid}**: ${_TASK_PR_URL[$tid]}\n"
+    comment+="- **${tid}**: ${_TASK_PR_URL[$tid]}
+"
   done
 
   gh issue comment "$issue_number" \
     -R "$repo_url" \
-    --body "$(printf '%b' "$comment")" 2>/dev/null || {
+    --body "$comment" 2>/dev/null || {
     log_warn "Failed to post success comment on issue #$issue_number"
   }
 
@@ -182,7 +188,12 @@ _comment_issue_partial() {
   local issue_number="$1"
   local repo_url="$2"
 
-  local comment="## Pipeline Partial Completion\n\nPer-task breakdown:\n\n"
+  local comment
+  comment="## Pipeline Partial Completion
+
+Per-task breakdown:
+
+"
   for tid in "${!_TASK_STATUS[@]}"; do
     local status="${_TASK_STATUS[$tid]}"
     local pr="${_TASK_PR_URL[$tid]:-none}"
@@ -192,16 +203,17 @@ _comment_issue_partial() {
       failure) icon="x" ;;
       skipped) icon="-" ;;
     esac
-    comment+="- [${icon}] **${tid}**: ${status}"
+    local line="- [${icon}] **${tid}**: ${status}"
     if [[ "$pr" != "none" ]]; then
-      comment+=" — ${pr}"
+      line+=" — ${pr}"
     fi
-    comment+="\n"
+    comment+="${line}
+"
   done
 
   gh issue comment "$issue_number" \
     -R "$repo_url" \
-    --body "$(printf '%b' "$comment")" 2>/dev/null || {
+    --body "$comment" 2>/dev/null || {
     log_warn "Failed to post partial-completion comment on issue #$issue_number"
   }
 

@@ -44,7 +44,12 @@ acquire_lock() {
 
     if ! _pid_alive "$owner_pid"; then
       log_warn "Reclaiming stale lock (PID $owner_pid no longer alive)"
-      rm -rf "$_LOCK_DIR"
+      # Atomically rename before removal so a concurrent reclaim doesn't destroy
+      # a freshly-acquired lock directory.
+      local stale_dir="${_LOCK_DIR}.stale.$$"
+      if mv "$_LOCK_DIR" "$stale_dir" 2>/dev/null; then
+        rm -rf "$stale_dir"
+      fi
 
       if mkdir "$_LOCK_DIR" 2>/dev/null; then
         printf '%s' "$$" > "$pid_file"
@@ -65,7 +70,8 @@ acquire_lock() {
 
   # pid file missing but dir exists — treat as stale
   log_warn "Lock directory exists without PID file; reclaiming"
-  rm -rf "$_LOCK_DIR"
+  local stale_dir="${_LOCK_DIR}.stale.$$"
+  mv "$_LOCK_DIR" "$stale_dir" 2>/dev/null && rm -rf "$stale_dir" || rm -rf "$_LOCK_DIR"
 
   if mkdir "$_LOCK_DIR" 2>/dev/null; then
     printf '%s' "$$" > "$_LOCK_DIR/pid"

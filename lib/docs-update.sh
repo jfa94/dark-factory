@@ -98,7 +98,8 @@ ${prd_body}
   local decisions_dir="${PROJECT_DIR}/docs/decisions"
   if [[ -d "$decisions_dir" ]]; then
     local max_num
-    max_num="$(find "$decisions_dir" -maxdepth 1 -name '[0-9]*.md' -printf '%f\n' 2>/dev/null \
+    max_num="$(find "$decisions_dir" -maxdepth 1 -name '[0-9]*.md' 2>/dev/null \
+      | xargs -I{} basename {} .md 2>/dev/null \
       | grep -oE '^[0-9]+' | sort -n | tail -1)" || max_num=""
     if [[ -n "$max_num" ]]; then
       next_adr_num=$(( max_num + 1 ))
@@ -145,7 +146,7 @@ Run in fully automated (headless) mode — there is no user to interact with.
 
 ${prd_section}## Spec and Tasks
 
-$(printf '%b' "$spec_contents")
+$(printf '%s' "$spec_contents")
 ## Code Changes (diff from ${diff_base} to HEAD)
 ${diff_truncated}
 

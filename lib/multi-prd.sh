@@ -72,8 +72,10 @@ sequential_execution() {
 
 # Process PRDs in parallel, each in its own git worktree.
 parallel_worktree_execution() {
-  local numbers=("${!1}")
-  local titles=("${!2}")
+  # shellcheck disable=SC2178  # nameref to caller's array
+  local -n numbers="$1"
+  # shellcheck disable=SC2178
+  local -n titles="$2"
   local total="${#numbers[@]}"
 
   # --- Parent setup: ensure staging branch exists for worktree creation ---
@@ -123,7 +125,9 @@ parallel_worktree_execution() {
       git -C "$PROJECT_DIR" worktree remove "$worktree_path" --force 2>/dev/null || rm -rf "$worktree_path"
     fi
 
-    git -C "$PROJECT_DIR" worktree add "$worktree_path" staging --quiet
+    # Use --detach so multiple worktrees can all be based on staging without
+    # git's "branch already checked out" restriction.
+    git -C "$PROJECT_DIR" worktree add --detach "$worktree_path" staging --quiet
 
     "$FACTORY_DIR/run-factory.sh" "$worktree_path" --issue "$issue_number" &
     worker_pids+=($!)
@@ -211,7 +215,7 @@ discover_and_process_prds() {
         ;;
       p|P)
         log_info "Starting parallel worktree execution"
-        parallel_worktree_execution _PRD_NUMBERS[@] _PRD_TITLES[@]
+        parallel_worktree_execution _PRD_NUMBERS _PRD_TITLES
         return $?
         ;;
       *)

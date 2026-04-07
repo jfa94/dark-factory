@@ -124,6 +124,10 @@ _attempt_dep_ci_fix() {
     fi
     git -C "$PROJECT_DIR" pull --quiet origin "$dep_branch" 2>/dev/null || true
 
+    # Capture pre-fix state so we can detect whether Claude made any changes
+    local pre_fix_sha
+    pre_fix_sha="$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || true)"
+
     # Build fix prompt and invoke Claude
     local prompt_file
     prompt_file="$(_build_ci_fix_prompt "$dep_id" "$ci_context")"
@@ -152,8 +156,11 @@ _attempt_dep_ci_fix() {
       continue
     fi
 
-    # Check if Claude made any changes
-    if git -C "$PROJECT_DIR" diff --quiet HEAD "origin/${dep_branch}" 2>/dev/null; then
+    # Check if Claude made any changes (compare current HEAD to pre-fix SHA, plus working tree)
+    local post_fix_sha
+    post_fix_sha="$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || true)"
+    if [[ "$post_fix_sha" == "$pre_fix_sha" ]] && \
+       git -C "$PROJECT_DIR" diff --quiet 2>/dev/null; then
       log_warn "CI fix produced no changes for $dep_id"
       git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
       continue

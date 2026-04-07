@@ -423,8 +423,8 @@ _run_auto_fix() {
     log_warn "Auto-fix: pnpm lint:fix failed (non-fatal)"
   fi
 
-  # Stage any auto-fix changes
-  git -C "$PROJECT_DIR" add -A 2>/dev/null || true
+  # Stage any auto-fix changes (tracked files only — avoid picking up untracked temp/debug files)
+  git -C "$PROJECT_DIR" add -u 2>/dev/null || true
   if ! git -C "$PROJECT_DIR" diff --cached --quiet 2>/dev/null; then
     git -C "$PROJECT_DIR" commit -m "style: auto-fix formatting and lint" --quiet 2>/dev/null || true
   fi

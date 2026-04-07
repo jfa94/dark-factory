@@ -154,7 +154,19 @@ PROTECTION
 
 # Commit factory-deployed configs to staging (idempotent — no-op if clean).
 commit_deployed_configs() {
-  git -C "$PROJECT_DIR" add -A
+  # Stage only factory-deployed files (tracked in _DEPLOYED_CONFIGS) plus gitignore.
+  # Avoids accidentally committing unrelated working-tree changes.
+  if [[ ${#_DEPLOYED_CONFIGS[@]} -gt 0 ]]; then
+    for f in "${_DEPLOYED_CONFIGS[@]}"; do
+      # Strip description suffix (e.g., " (scaffold merge)") to get the file path
+      local path="${f% (*}"
+      git -C "$PROJECT_DIR" add -- "$path" 2>/dev/null || true
+    done
+  fi
+  git -C "$PROJECT_DIR" add -- .gitignore 2>/dev/null || true
+  git -C "$PROJECT_DIR" add -- .github/workflows/quality-gate.yml 2>/dev/null || true
+  git -C "$PROJECT_DIR" add -- .stryker.config.json 2>/dev/null || true
+  git -C "$PROJECT_DIR" add -- .dependency-cruiser.cjs 2>/dev/null || true
 
   if git -C "$PROJECT_DIR" diff --cached --quiet; then
     log_info "No new factory configs to commit"

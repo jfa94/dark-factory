@@ -96,6 +96,12 @@ _ensure_gitignore_entries() {
   )
   [[ -f "$gitignore" ]] || return 0
   for entry in "${entries[@]}"; do
-    grep -qF "$entry" "$gitignore" || printf '\n%s\n' "$entry" >> "$gitignore"
+    if ! grep -qF "$entry" "$gitignore"; then
+      # Ensure file ends with a newline before appending (wc -l on last byte: 0 = no newline)
+      if [[ -s "$gitignore" ]] && [[ "$(tail -c1 "$gitignore" | wc -l)" -eq 0 ]]; then
+        printf '\n' >> "$gitignore"
+      fi
+      printf '%s\n' "$entry" >> "$gitignore"
+    fi
   done
 }
