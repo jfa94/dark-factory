@@ -55,7 +55,7 @@ check_resume() {
 
   log_info "  $completed_count task(s) completed in prior run"
 
-  # Non-interactive mode: FACTORY_RESUME=r (resume) or FACTORY_RESUME=f (fresh)
+  # Non-interactive mode: FACTORY_RESUME=r|resume (resume) or FACTORY_RESUME=f|fresh (fresh)
   local choice="${FACTORY_RESUME:-}"
 
   if [[ -z "$choice" ]]; then
@@ -69,20 +69,20 @@ check_resume() {
     while true; do
       read -rp "  Enter choice (r/f): " choice
       case "$choice" in
-        r|R|f|F) break ;;
+        r|R|resume|f|F|fresh) break ;;
         *) log_warn "Invalid choice — enter 'r' or 'f'" ;;
       esac
     done
   fi
 
   case "$choice" in
-    r|R)
+    r|R|resume)
       log_info "Resuming from prior run"
       printf '%s\n' "$latest_dir"
       printf '%s\n' "$completed"
       return 0
       ;;
-    f|F)
+    f|F|fresh)
       log_info "Starting fresh"
       return 0
       ;;
