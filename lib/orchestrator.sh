@@ -392,16 +392,16 @@ _wait_for_dependency_prs() {
                   git -C "$PROJECT_DIR" add -- "$f" 2>/dev/null || true
                   ;;
                 package.json)
-                  # Normalize JSON formatting on all 3 sides then re-merge — resolves
-                  # tabWidth/indent conflicts while preserving both sides' semantic changes
+                  # Normalize all 3 sides to 4-space indent (matching prettier tabWidth:4)
+                  # then 3-way merge — resolves formatting conflicts, preserves semantic changes
                   local _pkg_tmp
                   _pkg_tmp="$(mktemp -d)"
                   if git -C "$PROJECT_DIR" show ":1:package.json" 2>/dev/null \
-                        | jq '.' > "$_pkg_tmp/base.json" \
+                        | jq --indent 4 '.' > "$_pkg_tmp/base.json" \
                      && git -C "$PROJECT_DIR" show ":2:package.json" 2>/dev/null \
-                        | jq '.' > "$_pkg_tmp/ours.json" \
+                        | jq --indent 4 '.' > "$_pkg_tmp/ours.json" \
                      && git -C "$PROJECT_DIR" show ":3:package.json" 2>/dev/null \
-                        | jq '.' > "$_pkg_tmp/theirs.json" \
+                        | jq --indent 4 '.' > "$_pkg_tmp/theirs.json" \
                      && git merge-file -p \
                           "$_pkg_tmp/ours.json" "$_pkg_tmp/base.json" "$_pkg_tmp/theirs.json" \
                           > "$_pkg_tmp/merged.json" 2>/dev/null; then
