@@ -241,11 +241,20 @@ check_usage_and_wait() {
     fi
   fi
 
-  local usage_json
-  usage_json="$(_fetch_usage)" || {
-    log_error "Usage API unavailable — check network connectivity and OAuth token validity"
+  local usage_json="" fetch_attempt=0
+  while [[ "$fetch_attempt" -lt 3 ]]; do
+    fetch_attempt=$(( fetch_attempt + 1 ))
+    usage_json="$(_fetch_usage)" && break
+    if [[ "$fetch_attempt" -lt 3 ]]; then
+      log_warn "Usage API fetch failed (attempt $fetch_attempt/3) — retrying in 5s"
+      sleep 5
+    fi
+    usage_json=""
+  done
+  if [[ -z "$usage_json" ]]; then
+    log_error "Usage API unavailable after 3 attempts — check network connectivity and OAuth token validity"
     return 1
-  }
+  fi
 
   # Parse fields
   local utilization resets_at

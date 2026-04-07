@@ -131,12 +131,20 @@ _attempt_dep_ci_fix() {
     local claude_output_file
     claude_output_file="$(factory_mktemp)"
 
+    local saved_model_args=("${_MODEL_ARGS[@]}")
+    local saved_max_turns="$_MAX_TURNS"
+    local saved_task_id="$_CURRENT_TASK_ID"
     _MODEL_ARGS=()
     _MAX_TURNS=40
+    _CURRENT_TASK_ID="$dep_id"
 
     local claude_exit=0
     _invoke_claude "$prompt_file" "$claude_output_file" || claude_exit=$?
     rm -f "$prompt_file" "$claude_output_file"
+
+    _MODEL_ARGS=("${saved_model_args[@]}")
+    _MAX_TURNS="$saved_max_turns"
+    _CURRENT_TASK_ID="$saved_task_id"
 
     if [[ "$claude_exit" -ne 0 ]]; then
       log_warn "Claude CI fix session failed for $dep_id (exit $claude_exit)"
@@ -326,18 +334,18 @@ _wait_for_dependency_prs() {
             if [[ -z "$non_tracking_conflicts" && -n "$conflict_files" ]]; then
               log_warn "Auto-resolving pipeline tracking file conflicts for $dep_id"
               # Take staging's version for these files (--ours in rebase = the base, i.e. staging)
-              printf '%s\n' "$conflict_files" | while IFS= read -r f; do
+              while IFS= read -r f; do
                 git -C "$PROJECT_DIR" checkout --ours -- "$f" 2>/dev/null || true
                 git -C "$PROJECT_DIR" add -- "$f" 2>/dev/null || true
-              done
+              done <<< "$conflict_files"
               GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue --quiet 2>/dev/null \
                 && rebase_cmd_ok=1 || true
             else
-              # Real code conflicts — retry with -X theirs to prefer feature branch's changes
+              # Real code conflicts — cannot safely auto-resolve, require manual intervention
               git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
-              log_warn "Retrying rebase with -X theirs for $dep_id"
-              git -C "$PROJECT_DIR" rebase origin/staging -X theirs --quiet 2>/dev/null \
-                && rebase_cmd_ok=1 || true
+              local conflict_list
+              conflict_list="$(printf '%s' "$non_tracking_conflicts" | tr '\n' ',')"
+              log_error "Rebase of $dep_id has real code conflicts: ${conflict_list%,} — requires manual resolution"
             fi
           fi
 

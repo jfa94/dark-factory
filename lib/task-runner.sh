@@ -91,11 +91,18 @@ _create_feature_branch() {
     if ! git -C "$PROJECT_DIR" merge-base --is-ancestor staging "$branch" 2>/dev/null; then
       log_info "Rebasing $branch onto staging"
       if ! git -C "$PROJECT_DIR" rebase staging --quiet 2>/dev/null; then
-        log_warn "Rebase of $branch onto staging failed — resetting branch to staging for fresh attempt"
+        local tip_sha
+        tip_sha="$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null)" || tip_sha="unknown"
+        log_warn "Rebase of $branch failed — resetting to staging for fresh attempt (prior tip: $tip_sha, recoverable via git reflog)"
         git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
         git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
         git -C "$PROJECT_DIR" branch -D "$branch" 2>/dev/null || true
         git -C "$PROJECT_DIR" checkout -b "$branch" --quiet
+        # Stash was saved from a different branch context — drop it rather than applying stale state
+        if [[ "$stashed" -eq 1 ]]; then
+          git -C "$PROJECT_DIR" stash drop --quiet 2>/dev/null || true
+          stashed=0
+        fi
       fi
     fi
     if [[ "$stashed" -eq 1 ]]; then git -C "$PROJECT_DIR" stash pop --quiet 2>/dev/null || true; fi
@@ -235,7 +242,7 @@ failures so CI passes and the PR can merge.
 
 ## CI Failure Details
 
-$(printf '%b' "$ci_context")
+$(printf '%s' "$ci_context")
 
 ## Rules
 
