@@ -244,6 +244,11 @@ check_usage_and_wait() {
   local usage_json="" fetch_attempt=0
   while [[ "$fetch_attempt" -lt 3 ]]; do
     fetch_attempt=$(( fetch_attempt + 1 ))
+    # On retries, reload token from Keychain — Claude Code may have refreshed it
+    if [[ "$fetch_attempt" -gt 1 ]]; then
+      _OAUTH_TOKEN_LOADED=0
+      _load_oauth_token 2>/dev/null || true
+    fi
     usage_json="$(_fetch_usage)" && break
     if [[ "$fetch_attempt" -lt 3 ]]; then
       log_warn "Usage API fetch failed (attempt $fetch_attempt/3) — retrying in 5s"
