@@ -267,9 +267,17 @@ check_usage_and_wait() {
     return 1
   }
 
-  if [[ -z "$utilization" || -z "$resets_at" ]]; then
-    log_error "Missing utilization or resets_at in usage response — unexpected API response format"
-    return 1
+  # Right after a window reset the API may transiently return null fields.
+  # Default to 0% / synthetic +5h reset — safe to proceed.
+  if [[ -z "$utilization" ]]; then
+    log_warn "Usage API returned null utilization — assuming 0% (post-reset transient)"
+    utilization="0"
+  fi
+  if [[ -z "$resets_at" ]]; then
+    log_warn "Usage API returned null resets_at — assuming +5h"
+    resets_at="$(TZ=UTC date -v+5H "+%Y-%m-%dT%H:%M:%S" 2>/dev/null)" \
+      || resets_at="$(TZ=UTC date -d "+5 hours" "+%Y-%m-%dT%H:%M:%S" 2>/dev/null)" \
+      || resets_at="$(TZ=UTC date "+%Y-%m-%dT%H:%M:%S")"
   fi
 
   # Also check seven-day utilization; use whichever is higher for cap enforcement
