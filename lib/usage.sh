@@ -236,31 +236,31 @@ check_claude_rate_limit() {
 check_usage_and_wait() {
   if [[ "$_USAGE_AVAILABLE" -eq 0 ]]; then
     if ! _load_oauth_token; then
-      log_warn "Usage monitoring unavailable — proceeding without rate pacing"
-      return 0
+      log_error "Usage monitoring unavailable — check Claude OAuth token (run \`claude /login\` to refresh)"
+      return 1
     fi
   fi
 
   local usage_json
   usage_json="$(_fetch_usage)" || {
-    log_warn "Usage API unavailable — proceeding without rate pacing"
-    return 0
+    log_error "Usage API unavailable — check network connectivity and OAuth token validity"
+    return 1
   }
 
   # Parse fields
   local utilization resets_at
   utilization="$(printf '%s' "$usage_json" | jq -r '.five_hour.utilization // empty')" || {
-    log_warn "Could not parse utilization from usage response — skipping pacing"
-    return 0
+    log_error "Could not parse utilization from usage response — unexpected API response format"
+    return 1
   }
   resets_at="$(printf '%s' "$usage_json" | jq -r '.five_hour.resets_at // empty')" || {
-    log_warn "Could not parse resets_at from usage response — skipping pacing"
-    return 0
+    log_error "Could not parse resets_at from usage response — unexpected API response format"
+    return 1
   }
 
   if [[ -z "$utilization" || -z "$resets_at" ]]; then
-    log_warn "Missing utilization or resets_at in usage response — skipping pacing"
-    return 0
+    log_error "Missing utilization or resets_at in usage response — unexpected API response format"
+    return 1
   fi
 
   # Also check seven-day utilization; use whichever is higher for cap enforcement
@@ -280,7 +280,7 @@ check_usage_and_wait() {
   now_epoch="$(date "+%s")"
   reset_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${resets_at%%.*}" "+%s" 2>/dev/null)" \
     || reset_epoch="$(TZ=UTC date -d "${resets_at%%.*}" "+%s" 2>/dev/null)" \
-    || { log_warn "Could not parse reset time: $resets_at — skipping pacing"; return 0; }
+    || { log_error "Could not parse reset time: $resets_at — cannot determine pacing window"; return 1; }
 
   local window_start window_elapsed window_hour hourly_threshold
   window_start=$(( reset_epoch - 5 * 3600 ))

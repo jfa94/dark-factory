@@ -81,7 +81,10 @@ check_claude_rate_limit
 
 case "$MODE" in
   issue)
-    check_usage_and_wait
+    if ! check_usage_and_wait; then
+      log_error "Cannot proceed without usage monitoring — aborting"
+      exit 1
+    fi
     log_header "Spec Generation"
     generate_and_review_spec
     ;;
@@ -174,7 +177,10 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   commit_spec_to_staging "$_SPEC_DIR"
 
   # Execute tasks in dependency order
-  check_usage_and_wait
+  if ! check_usage_and_wait; then
+    log_error "Cannot proceed without usage monitoring — aborting"
+    exit 1
+  fi
   execute_tasks || true
 
   # Completion: summary, issue management, merge wait, cleanup
