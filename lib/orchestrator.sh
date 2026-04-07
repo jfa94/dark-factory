@@ -339,7 +339,11 @@ _wait_for_dependency_prs() {
             conflict_files="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
 
             if [[ -z "$conflict_files" ]]; then
-              break  # No conflicts but rebase not done — unexpected, bail out
+              # No conflict markers — may be an empty commit from prior round's --continue
+              # Try skip; if that also fails or there's nothing to skip, bail out
+              GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip --quiet 2>/dev/null \
+                && rebase_cmd_ok=1 || true
+              break
             fi
 
             local non_auto_conflicts
@@ -400,6 +404,20 @@ _wait_for_dependency_prs() {
 
             GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue --quiet 2>/dev/null \
               && rebase_cmd_ok=1 || true
+
+            # If --continue still failed and no new conflict files, the resolved commit
+            # became empty (pure formatting change). Skip it and let the loop handle
+            # any remaining commits.
+            if [[ "$rebase_cmd_ok" -eq 0 ]]; then
+              local _post_continue_conflicts
+              _post_continue_conflicts="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
+              if [[ -z "$_post_continue_conflicts" ]]; then
+                log_info "Resolved commit was empty (pure formatting) — skipping for $dep_id"
+                GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip --quiet 2>/dev/null \
+                  && rebase_cmd_ok=1 || true
+                # If --skip also failed, next loop iteration will handle new conflicts
+              fi
+            fi
           done
 
           if [[ "$rebase_cmd_ok" -eq 1 ]]; then
