@@ -287,6 +287,22 @@ _wait_for_dependency_prs() {
       continue
     fi
 
+    # The tracked PR may be stale (e.g. a re-run created a new PR while an older
+    # one for the same branch already merged into staging). Check for any merged PR
+    # on this dep's branch — if one exists, the code is already in staging.
+    local _repo_slug
+    _repo_slug="$(git -C "$PROJECT_DIR" remote get-url origin 2>/dev/null \
+      | sed 's|.*github\.com[:/]\(.*\)\.git|\1|; s|.*github\.com[:/]\(.*\)|\1|')" || true
+    if [[ -n "$_repo_slug" ]]; then
+      local _merged_pr_num
+      _merged_pr_num="$(gh pr list --head "feat/${dep_id}" -R "$_repo_slug" \
+        --state merged --json number --jq '.[0].number' 2>/dev/null)" || true
+      if [[ -n "$_merged_pr_num" ]]; then
+        log_info "$dep_id code already in staging via merged PR #${_merged_pr_num} — skipping wait"
+        continue
+      fi
+    fi
+
     # Poll until merged, timeout, or cancelled
     log_info "Waiting for $dep_id PR to merge: $pr_url"
     local waited=0
