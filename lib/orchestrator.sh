@@ -533,6 +533,12 @@ execute_tasks() {
 
     log_header "Task ${_task_num}/${_total_tasks}: ${task_id}"
 
+    # Skip already-completed tasks (resume) — before any API calls or dep checks
+    if [[ "${_TASK_STATUS[$task_id]:-}" == "success" ]]; then
+      log_info "Skipping $task_id — already completed (resumed)"
+      continue
+    fi
+
     # Circuit breakers
     if ! _check_circuit_breakers; then
       log_error "Circuit breaker tripped — stopping execution"
@@ -561,12 +567,6 @@ execute_tasks() {
       log_error "Dependency PR merge failed for $task_id — skipping"
       _TASK_STATUS["$task_id"]="skipped"
       write_status "$task_id" "skipped"
-      continue
-    fi
-
-    # Skip already-completed tasks (resume)
-    if [[ "${_TASK_STATUS[$task_id]:-}" == "success" ]]; then
-      log_info "Skipping $task_id — already completed (resumed)"
       continue
     fi
 
