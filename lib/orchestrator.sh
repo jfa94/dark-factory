@@ -310,14 +310,44 @@ _wait_for_dependency_prs() {
         if git -C "$PROJECT_DIR" checkout "$dep_branch" --quiet 2>/dev/null; then
           git -C "$PROJECT_DIR" pull --quiet origin "$dep_branch" 2>/dev/null || true
 
-          if git -C "$PROJECT_DIR" rebase origin/staging --quiet 2>/dev/null; then
+          local rebase_cmd_ok=0
+          git -C "$PROJECT_DIR" rebase origin/staging --quiet 2>/dev/null && rebase_cmd_ok=1
+
+          # If rebase hit conflicts, try auto-resolving pipeline tracking files
+          # (claude-progress.json, feature-status.json) which should not be on feature branches
+          if [[ "$rebase_cmd_ok" -eq 0 ]]; then
+            local conflict_files
+            conflict_files="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
+            local non_tracking_conflicts
+            non_tracking_conflicts="$(printf '%s\n' "$conflict_files" \
+              | grep -v '^claude-progress\.json$' \
+              | grep -v '^feature-status\.json$')" || true
+
+            if [[ -z "$non_tracking_conflicts" && -n "$conflict_files" ]]; then
+              log_warn "Auto-resolving pipeline tracking file conflicts for $dep_id"
+              # Take staging's version for these files (--ours in rebase = the base, i.e. staging)
+              printf '%s\n' "$conflict_files" | while IFS= read -r f; do
+                git -C "$PROJECT_DIR" checkout --ours -- "$f" 2>/dev/null || true
+                git -C "$PROJECT_DIR" add -- "$f" 2>/dev/null || true
+              done
+              GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue --quiet 2>/dev/null \
+                && rebase_cmd_ok=1 || true
+            else
+              # Real code conflicts — retry with -X theirs to prefer feature branch's changes
+              git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
+              log_warn "Retrying rebase with -X theirs for $dep_id"
+              git -C "$PROJECT_DIR" rebase origin/staging -X theirs --quiet 2>/dev/null \
+                && rebase_cmd_ok=1 || true
+            fi
+          fi
+
+          if [[ "$rebase_cmd_ok" -eq 1 ]]; then
             if git -C "$PROJECT_DIR" push --force-with-lease origin "$dep_branch" --quiet 2>/dev/null; then
               log_success "Rebased and pushed $dep_branch — re-enabling auto-merge"
               gh pr merge --auto --squash "$pr_url" 2>/dev/null || true
               rebase_ok=1
             else
               log_error "Failed to push rebased $dep_branch"
-              git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
             fi
           else
             log_error "Rebase of $dep_branch onto staging failed (unresolvable conflicts)"
