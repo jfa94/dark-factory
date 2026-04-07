@@ -539,6 +539,15 @@ execute_tasks() {
       continue
     fi
 
+    # Dependency check — skip if any dep already failed or was skipped (no API calls needed)
+    local blocking_dep
+    if ! blocking_dep="$(_check_dependencies "$task_id")"; then
+      log_warn "Skipping $task_id — dependency $blocking_dep failed or was skipped"
+      _TASK_STATUS["$task_id"]="skipped"
+      write_status "$task_id" "skipped"
+      continue
+    fi
+
     # Circuit breakers
     if ! _check_circuit_breakers; then
       log_error "Circuit breaker tripped — stopping execution"
@@ -549,17 +558,6 @@ execute_tasks() {
     if ! check_usage_and_wait; then
       log_error "Usage check failed — aborting task execution"
       return 1
-    fi
-
-    # Dependency check — skip if any dep failed or was skipped
-    local blocking_dep
-    if blocking_dep="$(_check_dependencies "$task_id")"; then
-      : # all deps satisfied
-    else
-      log_warn "Skipping $task_id — dependency $blocking_dep failed or was skipped"
-      _TASK_STATUS["$task_id"]="skipped"
-      write_status "$task_id" "skipped"
-      continue
     fi
 
     # Wait for dependency PRs to merge
