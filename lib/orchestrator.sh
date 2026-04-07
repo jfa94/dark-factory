@@ -328,69 +328,79 @@ _wait_for_dependency_prs() {
           local rebase_cmd_ok=0
           git -C "$PROJECT_DIR" rebase origin/staging --quiet 2>/dev/null && rebase_cmd_ok=1
 
-          # If rebase hit conflicts, try auto-resolving known-safe conflict types:
-          # - Pipeline tracking files (claude-progress.json, feature-status.json)
-          # - package.json formatting-only conflicts (prettier tabWidth differences)
-          if [[ "$rebase_cmd_ok" -eq 0 ]]; then
+          # Loop to resolve auto-safe conflicts round by round — each `rebase --continue`
+          # may surface new conflicts on subsequent commits in a multi-commit branch.
+          # Auto-safe: pipeline tracking files + package.json formatting differences.
+          local _rebase_round=0
+          while [[ "$rebase_cmd_ok" -eq 0 && "$_rebase_round" -lt 30 ]]; do
+            _rebase_round=$(( _rebase_round + 1 ))
+
             local conflict_files
             conflict_files="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
+
+            if [[ -z "$conflict_files" ]]; then
+              break  # No conflicts but rebase not done — unexpected, bail out
+            fi
+
             local non_auto_conflicts
             non_auto_conflicts="$(printf '%s\n' "$conflict_files" \
               | grep -v '^claude-progress\.json$' \
               | grep -v '^feature-status\.json$' \
               | grep -v '^package\.json$')" || true
 
-            if [[ -z "$non_auto_conflicts" && -n "$conflict_files" ]]; then
-              log_warn "Auto-resolving known-safe conflicts for $dep_id"
-              local pkg_resolve_ok=1
-
-              while IFS= read -r f; do
-                case "$f" in
-                  claude-progress.json|feature-status.json)
-                    # Take staging's version (--ours in rebase = staging/base)
-                    git -C "$PROJECT_DIR" checkout --ours -- "$f" 2>/dev/null || true
-                    git -C "$PROJECT_DIR" add -- "$f" 2>/dev/null || true
-                    ;;
-                  package.json)
-                    # Normalize JSON formatting on all 3 sides then re-merge — resolves
-                    # tabWidth/indent conflicts while preserving both sides' semantic changes
-                    local _pkg_tmp
-                    _pkg_tmp="$(mktemp -d)"
-                    if git -C "$PROJECT_DIR" show ":1:package.json" 2>/dev/null \
-                          | jq '.' > "$_pkg_tmp/base.json" \
-                       && git -C "$PROJECT_DIR" show ":2:package.json" 2>/dev/null \
-                          | jq '.' > "$_pkg_tmp/ours.json" \
-                       && git -C "$PROJECT_DIR" show ":3:package.json" 2>/dev/null \
-                          | jq '.' > "$_pkg_tmp/theirs.json" \
-                       && git merge-file -p \
-                            "$_pkg_tmp/ours.json" "$_pkg_tmp/base.json" "$_pkg_tmp/theirs.json" \
-                            > "$_pkg_tmp/merged.json" 2>/dev/null; then
-                      cp "$_pkg_tmp/merged.json" "$PROJECT_DIR/package.json"
-                      git -C "$PROJECT_DIR" add -- package.json 2>/dev/null || true
-                      log_info "Auto-resolved package.json formatting conflict for $dep_id"
-                    else
-                      pkg_resolve_ok=0
-                      log_warn "package.json has real semantic conflicts for $dep_id — cannot auto-resolve"
-                    fi
-                    rm -rf "$_pkg_tmp"
-                    ;;
-                esac
-              done <<< "$conflict_files"
-
-              if [[ "$pkg_resolve_ok" -eq 1 ]]; then
-                GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue --quiet 2>/dev/null \
-                  && rebase_cmd_ok=1 || true
-              else
-                git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
-              fi
-            else
-              # Real code conflicts — cannot safely auto-resolve, require manual intervention
+            if [[ -n "$non_auto_conflicts" ]]; then
+              # Real code conflicts — cannot safely auto-resolve
               git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
               local conflict_list
               conflict_list="$(printf '%s' "$non_auto_conflicts" | tr '\n' ',')"
               log_error "Rebase of $dep_id has real code conflicts: ${conflict_list%,} — requires manual resolution"
+              break
             fi
-          fi
+
+            log_warn "Auto-resolving known-safe conflicts for $dep_id (round $_rebase_round)"
+            local pkg_resolve_ok=1
+
+            while IFS= read -r f; do
+              case "$f" in
+                claude-progress.json|feature-status.json)
+                  # Take staging's version (--ours in rebase = staging/base)
+                  git -C "$PROJECT_DIR" checkout --ours -- "$f" 2>/dev/null || true
+                  git -C "$PROJECT_DIR" add -- "$f" 2>/dev/null || true
+                  ;;
+                package.json)
+                  # Normalize JSON formatting on all 3 sides then re-merge — resolves
+                  # tabWidth/indent conflicts while preserving both sides' semantic changes
+                  local _pkg_tmp
+                  _pkg_tmp="$(mktemp -d)"
+                  if git -C "$PROJECT_DIR" show ":1:package.json" 2>/dev/null \
+                        | jq '.' > "$_pkg_tmp/base.json" \
+                     && git -C "$PROJECT_DIR" show ":2:package.json" 2>/dev/null \
+                        | jq '.' > "$_pkg_tmp/ours.json" \
+                     && git -C "$PROJECT_DIR" show ":3:package.json" 2>/dev/null \
+                        | jq '.' > "$_pkg_tmp/theirs.json" \
+                     && git merge-file -p \
+                          "$_pkg_tmp/ours.json" "$_pkg_tmp/base.json" "$_pkg_tmp/theirs.json" \
+                          > "$_pkg_tmp/merged.json" 2>/dev/null; then
+                    cp "$_pkg_tmp/merged.json" "$PROJECT_DIR/package.json"
+                    git -C "$PROJECT_DIR" add -- package.json 2>/dev/null || true
+                    log_info "Auto-resolved package.json formatting conflict for $dep_id"
+                  else
+                    pkg_resolve_ok=0
+                    log_warn "package.json has real semantic conflicts for $dep_id — cannot auto-resolve"
+                  fi
+                  rm -rf "$_pkg_tmp"
+                  ;;
+              esac
+            done <<< "$conflict_files"
+
+            if [[ "$pkg_resolve_ok" -eq 0 ]]; then
+              git -C "$PROJECT_DIR" rebase --abort 2>/dev/null || true
+              break
+            fi
+
+            GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue --quiet 2>/dev/null \
+              && rebase_cmd_ok=1 || true
+          done
 
           if [[ "$rebase_cmd_ok" -eq 1 ]]; then
             if git -C "$PROJECT_DIR" push --force-with-lease origin "$dep_branch" --quiet 2>/dev/null; then
