@@ -326,11 +326,15 @@ _wait_for_dependency_prs() {
           git -C "$PROJECT_DIR" pull --quiet origin "$dep_branch" 2>/dev/null || true
 
           local rebase_cmd_ok=0
-          git -C "$PROJECT_DIR" rebase origin/staging --quiet 2>/dev/null && rebase_cmd_ok=1
+          # --empty=drop: auto-drop commits that become empty after conflict resolution
+          # (e.g. pure formatting commits that normalize to staging's existing content)
+          git -C "$PROJECT_DIR" rebase origin/staging --quiet --empty=drop 2>/dev/null \
+            && rebase_cmd_ok=1
 
           # Loop to resolve auto-safe conflicts round by round — each `rebase --continue`
           # may surface new conflicts on subsequent commits in a multi-commit branch.
-          # Auto-safe: pipeline tracking files + package.json formatting differences.
+          # Auto-safe: pipeline tracking files + package.json formatting differences
+          # + pnpm-lock.yaml (regenerated deterministically; take staging's version).
           local _rebase_round=0
           while [[ "$rebase_cmd_ok" -eq 0 && "$_rebase_round" -lt 30 ]]; do
             _rebase_round=$(( _rebase_round + 1 ))
@@ -339,8 +343,7 @@ _wait_for_dependency_prs() {
             conflict_files="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
 
             if [[ -z "$conflict_files" ]]; then
-              # No conflict markers — may be an empty commit from prior round's --continue
-              # Try skip; if that also fails or there's nothing to skip, bail out
+              # No conflict markers — commit may have become empty. Try skip.
               GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip --quiet 2>/dev/null \
                 && rebase_cmd_ok=1 || true
               break
@@ -350,7 +353,8 @@ _wait_for_dependency_prs() {
             non_auto_conflicts="$(printf '%s\n' "$conflict_files" \
               | grep -v '^claude-progress\.json$' \
               | grep -v '^feature-status\.json$' \
-              | grep -v '^package\.json$')" || true
+              | grep -v '^package\.json$' \
+              | grep -v '^pnpm-lock\.yaml$')" || true
 
             if [[ -n "$non_auto_conflicts" ]]; then
               # Real code conflicts — cannot safely auto-resolve
@@ -366,7 +370,7 @@ _wait_for_dependency_prs() {
 
             while IFS= read -r f; do
               case "$f" in
-                claude-progress.json|feature-status.json)
+                claude-progress.json|feature-status.json|pnpm-lock.yaml)
                   # Take staging's version (--ours in rebase = staging/base)
                   git -C "$PROJECT_DIR" checkout --ours -- "$f" 2>/dev/null || true
                   git -C "$PROJECT_DIR" add -- "$f" 2>/dev/null || true
@@ -405,17 +409,15 @@ _wait_for_dependency_prs() {
             GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue --quiet 2>/dev/null \
               && rebase_cmd_ok=1 || true
 
-            # If --continue still failed and no new conflict files, the resolved commit
-            # became empty (pure formatting change). Skip it and let the loop handle
-            # any remaining commits.
+            # If --continue still failed and no new conflict files, the commit became
+            # empty (e.g. git version without --empty=drop support). Skip it.
             if [[ "$rebase_cmd_ok" -eq 0 ]]; then
               local _post_continue_conflicts
               _post_continue_conflicts="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
               if [[ -z "$_post_continue_conflicts" ]]; then
-                log_info "Resolved commit was empty (pure formatting) — skipping for $dep_id"
+                log_info "Resolved commit was empty — skipping for $dep_id"
                 GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip --quiet 2>/dev/null \
                   && rebase_cmd_ok=1 || true
-                # If --skip also failed, next loop iteration will handle new conflicts
               fi
             fi
           done
