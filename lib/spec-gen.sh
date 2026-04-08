@@ -411,7 +411,9 @@ generate_and_review_spec() {
     iteration=$(( iteration + 1 ))
     log_info "Spec review iteration $iteration/$MAX_SPEC_ITERATIONS"
 
-    check_usage_and_wait || return 1
+    check_usage_and_wait; local _urc=$?
+    [[ "$_urc" -eq 2 ]] && return 0
+    [[ "$_urc" -ne 0 ]] && return 1
 
     local review_output
     review_output="$(_run_spec_review "$spec_dir" "$iteration")"
@@ -432,7 +434,9 @@ generate_and_review_spec() {
     fi
 
     if [[ "$iteration" -lt "$MAX_SPEC_ITERATIONS" ]]; then
-      check_usage_and_wait || return 1
+      check_usage_and_wait; local _urc2=$?
+      [[ "$_urc2" -eq 2 ]] && return 0
+      [[ "$_urc2" -ne 0 ]] && return 1
       _fix_blocking_issues "$spec_dir" "$review_output" "$iteration"
 
       # Re-validate tasks.json after fixes

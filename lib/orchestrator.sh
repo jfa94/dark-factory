@@ -638,8 +638,12 @@ execute_tasks() {
       return 1
     fi
 
-    # Usage check — fatal if usage cannot be determined
-    if ! check_usage_and_wait; then
+    # Usage check — return 1 on fatal error, return 2 on weekly budget exceeded
+    check_usage_and_wait; local _usage_rc=$?
+    if [[ "$_usage_rc" -eq 2 ]]; then
+      log_info "Weekly budget exceeded — saving progress and exiting"
+      return 0
+    elif [[ "$_usage_rc" -ne 0 ]]; then
       log_error "Usage check failed — aborting task execution"
       return 1
     fi

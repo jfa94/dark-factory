@@ -285,19 +285,12 @@ check_usage_and_wait() {
       || resets_at="$(TZ=UTC date "+%Y-%m-%dT%H:%M:%S")"
   fi
 
-  # Also check seven-day utilization; use whichever is higher for cap enforcement
+  # Parse seven-day utilization separately
   local seven_day_utilization seven_day_resets_at
   seven_day_utilization="$(printf '%s' "$usage_json" | jq -r '.seven_day.utilization // empty' 2>/dev/null)" || seven_day_utilization=""
   seven_day_resets_at="$(printf '%s' "$usage_json" | jq -r '.seven_day.resets_at // empty' 2>/dev/null)" || seven_day_resets_at=""
 
-  local effective_utilization="$utilization"
-  local effective_resets_at="$resets_at"
-  if [[ -n "$seven_day_utilization" ]] && awk -v w="$seven_day_utilization" -v f="$utilization" 'BEGIN{exit !(w > f)}'; then
-    effective_utilization="$seven_day_utilization"
-    effective_resets_at="${seven_day_resets_at:-$resets_at}"
-  fi
-
-  # Compute window position (always based on five-hour window for hourly pacing)
+  # Compute 5-hour window position for session pacing
   local now_epoch reset_epoch
   now_epoch="$(date "+%s")"
   reset_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${resets_at%%.*}" "+%s" 2>/dev/null)" \
@@ -316,30 +309,53 @@ check_usage_and_wait() {
 
   local hard_cap="$USAGE_HARD_CAP_PCT"
 
-  # Compute effective reset epoch for cap pause
-  local effective_reset_epoch="$reset_epoch"
-  if [[ "$effective_resets_at" != "$resets_at" && -n "$effective_resets_at" ]]; then
-    effective_reset_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${effective_resets_at%%.*}" "+%s" 2>/dev/null)" \
-      || effective_reset_epoch="$(TZ=UTC date -d "${effective_resets_at%%.*}" "+%s" 2>/dev/null)" \
-      || effective_reset_epoch="$reset_epoch"
+  # Compute weekly proportional threshold: (days_elapsed / 7) * 100
+  # If we're 3 days into the 7-day window, threshold = 42.9%
+  local weekly_threshold="" weekly_day=""
+  if [[ -n "$seven_day_utilization" && -n "$seven_day_resets_at" ]]; then
+    local weekly_reset_epoch
+    weekly_reset_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${seven_day_resets_at%%.*}" "+%s" 2>/dev/null)" \
+      || weekly_reset_epoch="$(TZ=UTC date -d "${seven_day_resets_at%%.*}" "+%s" 2>/dev/null)" \
+      || weekly_reset_epoch=""
+
+    if [[ -n "$weekly_reset_epoch" ]]; then
+      local weekly_window_start=$(( weekly_reset_epoch - 7 * 86400 ))
+      local weekly_elapsed=$(( now_epoch - weekly_window_start ))
+      weekly_day=$(( weekly_elapsed / 86400 + 1 ))
+      (( weekly_day < 1 )) && weekly_day=1
+      (( weekly_day > 7 )) && weekly_day=7
+      # Integer approximation: day * 100 / 7 (e.g. day 1→14, day 2→28, day 3→42)
+      weekly_threshold=$(( weekly_day * 100 / 7 ))
+    fi
   fi
 
-  # Format resets_at as local HH:MM for readability
-  local resets_local
-  resets_local="$(date -j -f "%Y-%m-%dT%H:%M:%S" "${effective_resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
-    || resets_local="$(date -d "${effective_resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
-    || resets_local="${effective_resets_at%%T*} ${effective_resets_at##*T}"
+  # Format session resets_at as local HH:MM for readability
+  local session_resets_local
+  session_resets_local="$(date -j -f "%Y-%m-%dT%H:%M:%S" "${resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
+    || session_resets_local="$(date -d "${resets_at%%.*}" "+%H:%M" 2>/dev/null)" \
+    || session_resets_local="${resets_at%%T*} ${resets_at##*T}"
 
-  local seven_day_label=""
-  [[ -n "$seven_day_utilization" ]] && seven_day_label=" · 7d: ${seven_day_utilization}%"
-  log_usage "5h: ${utilization}%${seven_day_label} · effective: ${effective_utilization}% · hour ${window_hour}/5 · threshold ${hourly_threshold}% · hard cap ${hard_cap}% · resets at ${resets_local}"
+  local seven_day_label="" weekly_threshold_label=""
+  if [[ -n "$seven_day_utilization" ]]; then
+    seven_day_label=" · 7d: ${seven_day_utilization}%"
+    [[ -n "$weekly_threshold" ]] && weekly_threshold_label=" (day ${weekly_day}/7, cap ${weekly_threshold}%)"
+  fi
+  log_usage "5h: ${utilization}% · hour ${window_hour}/5 · threshold ${hourly_threshold}% · hard cap ${hard_cap}% · resets at ${session_resets_local}${seven_day_label}${weekly_threshold_label}"
 
-  # Full pause: at or above hard cap — wait until effective window resets
-  if awk -v u="$effective_utilization" -v c="$hard_cap" 'BEGIN{exit !(u >= c)}'; then
-    local wait_secs=$(( effective_reset_epoch - now_epoch + 60 ))
+  # --- Weekly budget check (exit gracefully if over proportional threshold) ---
+  # Return 2 to signal callers to stop the pipeline gracefully.
+  if [[ -n "$weekly_threshold" ]] && awk -v u="$seven_day_utilization" -v t="$weekly_threshold" 'BEGIN{exit !(u >= t)}'; then
+    log_warn "=== WEEKLY BUDGET EXCEEDED: 7d usage ${seven_day_utilization}% >= ${weekly_threshold}% (day ${weekly_day}/7) — stopping pipeline ==="
+    log_info "The weekly usage budget has been reached for today. Re-run tomorrow when the proportional threshold increases."
+    return 2
+  fi
+
+  # --- Session hard cap: at or above 90% of 5h window — wait until session resets ---
+  if awk -v u="$utilization" -v c="$hard_cap" 'BEGIN{exit !(u >= c)}'; then
+    local wait_secs=$(( reset_epoch - now_epoch + 60 ))
 
     if [[ "$wait_secs" -le 0 ]]; then
-      log_info "Usage reset already passed, continuing"
+      log_info "Session reset already passed, continuing"
       return 0
     fi
 
@@ -348,7 +364,7 @@ check_usage_and_wait() {
       || wake_time="$(date -d "@$(( now_epoch + wait_secs ))" '+%H:%M:%S' 2>/dev/null)" \
       || wake_time="unknown"
 
-    log_warn "=== USAGE PAUSE (FULL): ${effective_utilization}% >= ${hard_cap}% hard cap — sleeping $(( wait_secs / 60 ))m until $wake_time ==="
+    log_warn "=== USAGE PAUSE (SESSION): ${utilization}% >= ${hard_cap}% hard cap — sleeping $(( wait_secs / 60 ))m until $wake_time ==="
 
     local remaining="$wait_secs"
     while [[ "$remaining" -gt 0 ]]; do
@@ -367,12 +383,11 @@ check_usage_and_wait() {
       fi
     done
 
-    log_success "=== USAGE PAUSE (FULL): resumed ==="
+    log_success "=== USAGE PAUSE (SESSION): resumed ==="
     return 0
   fi
 
-  # Hourly pause: above hourly threshold — based on five-hour utilization only
-  # (seven-day utilization above threshold would already have triggered the full pause above)
+  # --- Session hourly pacing: above hourly threshold — wait until next window hour ---
   if awk -v u="$utilization" -v t="$hourly_threshold" 'BEGIN{exit !(u >= t)}'; then
     local next_window_hour_epoch=$(( window_start + window_hour * 3600 ))
     local wait_secs=$(( next_window_hour_epoch - now_epoch + 10 ))

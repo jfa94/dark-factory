@@ -81,7 +81,10 @@ check_claude_rate_limit
 
 case "$MODE" in
   issue)
-    if ! check_usage_and_wait; then
+    check_usage_and_wait; local _usage_rc=$?
+    if [[ "$_usage_rc" -eq 2 ]]; then
+      exit 0
+    elif [[ "$_usage_rc" -ne 0 ]]; then
       log_error "Cannot proceed without usage monitoring — aborting"
       exit 1
     fi
@@ -177,7 +180,10 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   commit_spec_to_staging "$_SPEC_DIR"
 
   # Execute tasks in dependency order
-  if ! check_usage_and_wait; then
+  check_usage_and_wait; local _usage_rc2=$?
+  if [[ "$_usage_rc2" -eq 2 ]]; then
+    exit 0
+  elif [[ "$_usage_rc2" -ne 0 ]]; then
     log_error "Cannot proceed without usage monitoring — aborting"
     exit 1
   fi
