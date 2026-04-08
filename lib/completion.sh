@@ -211,6 +211,19 @@ Per-task breakdown:
 "
   done
 
+  local repo_path="${repo_url##*github.com[:/]}"
+  repo_path="${repo_path%.git}"
+  local last_comment
+  last_comment="$(gh api "repos/${repo_path}/issues/${issue_number}/comments" \
+    --jq '[.[] | select(.body | startswith("## Pipeline"))] | last | .body // ""' \
+    2>/dev/null)" || true
+
+  if [[ "$comment" == "$last_comment" ]]; then
+    log_info "Issue #$issue_number: status unchanged, skipping duplicate comment"
+    log_info "Issue #$issue_number left open (partial completion)"
+    return 0
+  fi
+
   gh issue comment "$issue_number" \
     -R "$repo_url" \
     --body "$comment" 2>/dev/null || {
