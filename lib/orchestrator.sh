@@ -359,10 +359,12 @@ _wait_for_dependency_prs() {
             conflict_files="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
 
             if [[ -z "$conflict_files" ]]; then
-              # No conflict markers — commit may have become empty. Try skip.
+              # No conflict markers — commit may have become empty. Skip it.
+              # Use `continue` not `break`: if --skip surfaces conflicts in the next
+              # commit, the loop must keep going to resolve them.
               GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip --quiet 2>/dev/null \
-                && rebase_cmd_ok=1 || true
-              break
+                && rebase_cmd_ok=1
+              continue
             fi
 
             local non_auto_conflicts
