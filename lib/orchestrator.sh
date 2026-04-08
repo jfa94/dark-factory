@@ -362,7 +362,7 @@ _wait_for_dependency_prs() {
               # No conflict markers — commit may have become empty. Skip it.
               # Use `continue` not `break`: if --skip surfaces conflicts in the next
               # commit, the loop must keep going to resolve them.
-              GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip --quiet 2>/dev/null \
+              GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip 2>/dev/null \
                 && rebase_cmd_ok=1
               continue
             fi
@@ -424,7 +424,7 @@ _wait_for_dependency_prs() {
               break
             fi
 
-            GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue --quiet 2>/dev/null \
+            GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --continue 2>/dev/null \
               && rebase_cmd_ok=1 || true
 
             # If --continue still failed and no new conflict files, the commit became
@@ -434,7 +434,7 @@ _wait_for_dependency_prs() {
               _post_continue_conflicts="$(git -C "$PROJECT_DIR" diff --name-only --diff-filter=U 2>/dev/null)" || true
               if [[ -z "$_post_continue_conflicts" ]]; then
                 log_info "Resolved commit was empty — skipping for $dep_id"
-                GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip --quiet 2>/dev/null \
+                GIT_EDITOR=true git -C "$PROJECT_DIR" rebase --skip 2>/dev/null \
                   && rebase_cmd_ok=1 || true
               fi
             fi
