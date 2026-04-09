@@ -45,17 +45,31 @@ Circuit breakers prevent runaway execution. When tripped, the pipeline stops gra
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `USAGE_HARD_CAP_PCT` | `90` | Pause when API usage reaches this percentage |
+| `USAGE_HARD_CAP_PCT` | `90` | Pause when 5-hour session usage reaches this percentage |
 | `USAGE_POLL_INTERVAL` | `300` | Seconds between usage checks during pause |
 
-The pipeline monitors both 5-hour and 7-day usage windows. When utilization approaches the cap, execution pauses until the window resets.
+The pipeline monitors both 5-hour and 7-day usage windows with distinct behaviors:
 
-Hourly pacing within the 5-hour window:
+### Session Pacing (5-hour window)
+
+Hourly pacing thresholds within the current 5-hour window:
 - Hour 1: 20% threshold
 - Hour 2: 40% threshold
 - Hour 3: 60% threshold
 - Hour 4: 80% threshold
 - Hour 5: 90% threshold
+
+When utilization exceeds the hourly threshold, execution pauses until the next window hour. At or above the hard cap (default 90%), pauses until the full window resets.
+
+### Weekly Budget (7-day window)
+
+Proportional daily threshold: `(day_elapsed / 7) * 100%`. For example:
+- Day 1: 14% threshold
+- Day 2: 28% threshold
+- Day 3: 42% threshold
+- Day 7: 100% threshold
+
+When 7-day utilization exceeds the proportional threshold, the pipeline stops gracefully (saves progress, posts partial-completion comment on issue). Re-run tomorrow when the threshold increases. This prevents burning the entire weekly budget in a single long run
 
 ## Rate Limit Handling
 

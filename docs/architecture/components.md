@@ -132,7 +132,7 @@ Functions:
 - `check_resume()` - Detect prior runs, prompt user (supports non-interactive mode via `FACTORY_RESUME` env var)
 - `get_resume_context()` - Get commits ahead of staging for a task branch
 - `print_summary()` - Display execution summary
-- `manage_issue()` - Close or comment on GitHub issue
+- `manage_issue()` - Close or comment on GitHub issue (skips duplicate partial-completion comments)
 - `wait_for_all_pr_merges()` - Poll all task PRs until merged
 - `cleanup_branches()` - Delete merged feature branches
 - `cleanup_spec()` - Remove spec directory and commit
@@ -199,13 +199,15 @@ Functions:
 API usage monitoring and rate limit handling.
 
 Functions:
-- `check_usage_and_wait()` - Pause if approaching rate limits
+- `check_usage_and_wait()` - Monitor usage and pause/exit as needed. Returns: 0 (proceed), 1 (fatal error), 2 (weekly budget exceeded—callers should exit gracefully)
 - `check_time_circuit_breaker()` - Enforce runtime limit
 - `is_rate_limit_error()` - Detect rate limit in Claude output
 - `wait_for_claude_available()` - Wait for rate limit reset
 - `check_claude_rate_limit()` - Pre-flight availability check
 
-Monitors both 5-hour and 7-day usage windows with hourly pacing.
+Monitors both 5-hour and 7-day usage windows:
+- **Session (5-hour)**: Hourly pacing thresholds (20/40/60/80/90%) plus hard cap at 90%
+- **Weekly (7-day)**: Proportional daily threshold (day N/7 * 100%). When exceeded, returns 2 so callers can exit gracefully and resume tomorrow
 
 #### scaffolding.sh
 
