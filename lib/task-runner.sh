@@ -499,6 +499,19 @@ run_task() {
       return 1
     fi
 
+    # Usage check before each attempt (skip attempt 1 — orchestrator already checked)
+    if [[ "$attempt" -gt 1 ]]; then
+      local _usage_rc=0
+      check_usage_and_wait || _usage_rc=$?
+      if [[ "$_usage_rc" -eq 2 ]]; then
+        log_warn "Weekly budget exceeded — aborting task $task_id"
+        return 1
+      elif [[ "$_usage_rc" -ne 0 ]]; then
+        log_error "Usage monitoring unavailable — aborting task $task_id"
+        return 1
+      fi
+    fi
+
     if [[ "$attempt" -eq 1 ]]; then
       log_info "Task $task_id — attempt $attempt"
     else

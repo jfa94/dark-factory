@@ -512,6 +512,27 @@ _wait_for_dependency_prs() {
 
 # --- Task execution ---
 
+# Map task complexity to max review retries.
+# complex: 3, standard: 2, simple: 1
+_review_retries_for_complexity() {
+  case "$1" in
+    complex) echo 3 ;;
+    simple)  echo 1 ;;
+    *)       echo 2 ;;  # standard / null / unknown
+  esac
+}
+
+# Capture PR URL for a successful task and store in _TASK_PR_URL.
+_capture_pr_url() {
+  local task_id="$1"
+  local pr_url
+  pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
+    --json url --jq '.url' 2>/dev/null)" || true
+  if [[ -n "$pr_url" ]]; then
+    _TASK_PR_URL["$task_id"]="$pr_url"
+  fi
+}
+
 # Execute a single task through the run → review → PR pipeline.
 # Returns 0 on success (PR created), 1 on failure.
 _execute_single_task() {
@@ -531,54 +552,43 @@ _execute_single_task() {
     return 1
   }
 
-  # Review the task
+  # Determine review retry budget from complexity
+  local complexity max_review_retries
+  complexity="$(printf '%s' "$task_json" | jq -r '.complexity // "standard"')"
+  max_review_retries="$(_review_retries_for_complexity "$complexity")"
+
+  # Initial review
   local review_rc=0
   review_task "$task_id" "$task_json" || review_rc=$?
+
+  # Review retry loop — up to max_review_retries follow-up cycles on REQUEST_CHANGES
+  local review_attempt=1
+  while [[ "$review_rc" -eq 1 && "$review_attempt" -le "$max_review_retries" ]]; do
+    log_info "Review requested changes for $task_id — retrying (${review_attempt}/${max_review_retries}, complexity=${complexity}) with review findings"
+    local review_findings="${TASK_FAILURE_OUTPUT:-}"
+
+    if ! run_task "$task_id"; then
+      _TASK_STATUS["$task_id"]="failure"
+      return 1
+    fi
+
+    review_rc=0
+    review_task "$task_id" "$task_json" 1 "$review_findings" || review_rc=$?
+    review_attempt=$(( review_attempt + 1 ))
+  done
 
   case "$review_rc" in
     0)
       _TASK_STATUS["$task_id"]="success"
-
-      # Capture PR URL from the branch (review_task creates the PR)
-      local pr_url
-      pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
-        --json url --jq '.url' 2>/dev/null)" || true
-
-      if [[ -n "$pr_url" ]]; then
-        _TASK_PR_URL["$task_id"]="$pr_url"
-      fi
-
+      _capture_pr_url "$task_id"
       return 0
       ;;
-
     1)
-      # REQUEST_CHANGES — code-review.sh set TASK_FAILURE_TYPE=code_review; retry
-      log_info "Review requested changes for $task_id — retrying with review findings"
-      local review_findings="${TASK_FAILURE_OUTPUT:-}"
-
-      if run_task "$task_id"; then
-        local followup_rc=0
-        review_task "$task_id" "$task_json" 1 "$review_findings" || followup_rc=$?
-
-        if [[ "$followup_rc" -eq 0 ]]; then
-          _TASK_STATUS["$task_id"]="success"
-
-          local pr_url
-          pr_url="$(gh pr view "feat/${task_id}" -R "$(git -C "$PROJECT_DIR" remote get-url origin)" \
-            --json url --jq '.url' 2>/dev/null)" || true
-
-          if [[ -n "$pr_url" ]]; then
-            _TASK_PR_URL["$task_id"]="$pr_url"
-          fi
-
-          return 0
-        fi
-      fi
-
+      # Exhausted review retry budget with REQUEST_CHANGES still set
+      log_error "Review retry budget exhausted for $task_id (${max_review_retries} retries)"
       _TASK_STATUS["$task_id"]="failure"
       return 1
       ;;
-
     *)
       # Hard failure (review session crashed, unexpected verdict)
       _TASK_STATUS["$task_id"]="failure"

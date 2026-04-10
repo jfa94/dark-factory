@@ -180,7 +180,7 @@ if [[ "$MODE" == "issue" || "$MODE" == "spec" ]]; then
   commit_spec_to_staging "$_SPEC_DIR"
 
   # Execute tasks in dependency order
-  check_usage_and_wait; local _usage_rc2=$?
+  check_usage_and_wait; _usage_rc2=$?
   if [[ "$_usage_rc2" -eq 2 ]]; then
     exit 0
   elif [[ "$_usage_rc2" -ne 0 ]]; then
