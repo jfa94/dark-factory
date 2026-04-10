@@ -633,6 +633,15 @@ execute_tasks() {
       continue
     fi
 
+    # Skip tasks whose feat commit is already in staging — catches re-runs after
+    # the log dir rotated, preventing duplicate PRs (B4).
+    if git -C "$PROJECT_DIR" log --grep "^feat(${task_id}):" origin/staging --max-count=1 --oneline 2>/dev/null | grep -q .; then
+      log_info "Skipping $task_id — feat commit already in staging"
+      _TASK_STATUS["$task_id"]="success"
+      _capture_pr_url "$task_id"
+      continue
+    fi
+
     # Dependency check — skip if any dep already failed or was skipped (no API calls needed)
     local blocking_dep
     if ! blocking_dep="$(_check_dependencies "$task_id")"; then
