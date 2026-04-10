@@ -568,10 +568,18 @@ run_task() {
 
     rm -f "$claude_output_file"
 
-    # Check if any changes were made (after confirming Claude exited 0)
-    if git -C "$PROJECT_DIR" diff --quiet HEAD staging 2>/dev/null && \
-       git -C "$PROJECT_DIR" diff --quiet 2>/dev/null && \
-       git -C "$PROJECT_DIR" diff --cached --quiet 2>/dev/null; then
+    # Commit any uncommitted work from Claude (tracked modifications + untracked
+    # non-ignored files). Without this, untracked feature files silently fail
+    # to push because `git add -u` in _run_auto_fix only picks up tracked
+    # modifications, producing empty PRs with only "style: auto-fix" commits.
+    git -C "$PROJECT_DIR" add -A 2>/dev/null || true
+    if ! git -C "$PROJECT_DIR" diff --cached --quiet 2>/dev/null; then
+      git -C "$PROJECT_DIR" commit -m "feat(${task_id}): task implementation" --quiet 2>/dev/null || true
+    fi
+
+    # Check if any changes were made — branch must be ahead of staging after
+    # the safety-net commit above, otherwise the task produced nothing.
+    if git -C "$PROJECT_DIR" diff --quiet HEAD staging 2>/dev/null; then
       log_warn "No changes detected for $task_id"
       prev_failure_type="no_changes"
       prev_failure_output=""
