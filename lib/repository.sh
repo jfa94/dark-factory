@@ -56,9 +56,11 @@ reconcile_staging_with_develop() {
 
   git -C "$PROJECT_DIR" checkout staging --quiet
 
-  # Sync with remote staging first (picks up merged PRs)
-  git -C "$PROJECT_DIR" merge --ff-only origin/staging --quiet 2>/dev/null \
-    || log_warn "Could not fast-forward local staging from origin/staging — may have diverged"
+  # Sync with remote staging first (picks up merged PRs); hard-reset on divergence
+  if ! git -C "$PROJECT_DIR" merge --ff-only origin/staging --quiet 2>/dev/null; then
+    log_warn "Could not fast-forward local staging from origin/staging — resetting hard"
+    git -C "$PROJECT_DIR" reset --hard origin/staging --quiet
+  fi
 
   # Check if staging already contains all of develop's commits
   if git -C "$PROJECT_DIR" merge-base --is-ancestor develop staging; then
