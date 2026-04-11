@@ -641,7 +641,6 @@ execute_tasks() {
         --grep "feat(${task_id}):" \
         --grep "feat/${task_id}" \
         --max-count=1 2>/dev/null)" || true
-    log_info "B4 check for $task_id: '${_b4_match:-<none>}'"
     if [[ -n "$_b4_match" ]]; then
       log_info "Skipping $task_id — feat commit already in staging"
       _TASK_STATUS["$task_id"]="success"

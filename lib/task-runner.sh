@@ -534,8 +534,11 @@ run_task() {
     _invoke_claude "$prompt_file" "$claude_output_file" || claude_exit=$?
     rm -f "$prompt_file"
 
-    # For max_turns failures, preserve partial work (no branch reset)
-    if [[ "$claude_exit" -eq 2 ]]; then
+    # For max_turns failures, preserve partial work (no branch reset).
+    # Claude CLI exits with code 1 in --print mode when max turns is hit, so
+    # also detect via output content (exit 2 kept for forwards-compatibility).
+    if [[ "$claude_exit" -eq 2 ]] || \
+       { [[ "$claude_exit" -ne 0 ]] && grep -q "Reached max turns" "$claude_output_file" 2>/dev/null; }; then
       log_warn "Claude hit max turns for $task_id"
       prev_failure_type="max_turns"
       prev_failure_output=""
@@ -556,7 +559,7 @@ run_task() {
       fi
     fi
 
-    # Agent error — non-zero exit that isn't max_turns
+    # Agent error — non-zero exit that isn't max_turns or rate limit
     if [[ "$claude_exit" -ne 0 ]]; then
       log_error "Claude exited with code $claude_exit for $task_id"
       prev_failure_type="agent_error"
