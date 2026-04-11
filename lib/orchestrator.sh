@@ -635,9 +635,14 @@ execute_tasks() {
 
     # Skip tasks whose feat commit is already in staging — catches re-runs after
     # the log dir rotated, preventing duplicate PRs (B4).
-    # Matches both squash format "feat(task-id): ..." and merge format "...feat/task-id".
-    if git -C "$PROJECT_DIR" log origin/staging --oneline 2>/dev/null \
-        | grep -qE "feat\(${task_id}\):|feat/${task_id}"; then
+    # Uses git log --grep (BRE) with two OR'd patterns to match squash and regular merge formats.
+    local _b4_match
+    _b4_match="$(git -C "$PROJECT_DIR" log origin/staging --oneline \
+        --grep "feat(${task_id}):" \
+        --grep "feat/${task_id}" \
+        --max-count=1 2>/dev/null)" || true
+    log_info "B4 check for $task_id: '${_b4_match:-<none>}'"
+    if [[ -n "$_b4_match" ]]; then
       log_info "Skipping $task_id — feat commit already in staging"
       _TASK_STATUS["$task_id"]="success"
       _capture_pr_url "$task_id"
