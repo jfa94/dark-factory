@@ -48,10 +48,19 @@ reconcile_staging_with_develop() {
   local original_branch
   original_branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)"
 
-  # Abort if working tree is dirty (same guard as safe_checkout_staging)
+  # If staging itself is dirty at startup, it's orphaned state from a prior run
+  # that crashed before _restore_staging could commit it. Discard and warn.
   if ! git -C "$PROJECT_DIR" diff --quiet || ! git -C "$PROJECT_DIR" diff --cached --quiet; then
-    log_error "Working tree is dirty — commit or stash changes before running the pipeline"
-    return 1
+    local _dirty_branch
+    _dirty_branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+    if [[ "$_dirty_branch" == "staging" ]]; then
+      log_warn "Staging has uncommitted changes (orphaned from prior run) — discarding"
+      git -C "$PROJECT_DIR" reset --hard HEAD --quiet 2>/dev/null || true
+      git -C "$PROJECT_DIR" clean -fd --exclude='.claude/' --quiet 2>/dev/null || true
+    else
+      log_error "Working tree is dirty — commit or stash changes before running the pipeline"
+      return 1
+    fi
   fi
 
   git -C "$PROJECT_DIR" checkout staging --quiet

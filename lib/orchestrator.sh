@@ -600,6 +600,15 @@ _execute_single_task() {
 # Restore project to staging after any task execution.
 # Called from execute_tasks after _execute_single_task completes.
 _restore_staging() {
+  # Commit any lingering uncommitted work before switching branches.
+  # Without this, git checkout carries staged/unstaged changes onto staging,
+  # leaving it dirty and blocking the next pipeline startup's reconcile check.
+  git -C "$PROJECT_DIR" add -A 2>/dev/null || true
+  if ! git -C "$PROJECT_DIR" diff --cached --quiet 2>/dev/null; then
+    local _cur_branch
+    _cur_branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+    git -C "$PROJECT_DIR" commit -m "chore: preserve partial work on ${_cur_branch}" --quiet 2>/dev/null || true
+  fi
   git -C "$PROJECT_DIR" checkout staging --quiet 2>/dev/null || true
 }
 
